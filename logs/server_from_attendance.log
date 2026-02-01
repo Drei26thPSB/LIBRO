@@ -1,0 +1,27 @@
+[2026-01-31 18:33:51,408] INFO in Server: Starting server
+ * Serving Flask app 'Server'
+ * Debug mode: off
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://192.168.8.138:5000
+Press CTRL+C to quit
+192.168.8.138 - - [31/Jan/2026 18:33:55] "GET / HTTP/1.1" 302 -
+192.168.8.138 - - [31/Jan/2026 18:33:55] "GET /files HTTP/1.1" 200 -
+192.168.8.138 - - [31/Jan/2026 18:34:11] "GET /download/csv_files\\2026-01-28.csv HTTP/1.1" 200 -
+[2026-01-31 18:36:30,543] INFO in Server: Starting server
+ * Serving Flask app 'Server'
+ * Debug mode: off
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://192.168.8.138:5000
+Press CTRL+C to quit
+[2026-01-31 18:36:45,919] INFO in Server: Starting server
+ * Serving Flask app 'Server'
+ * Debug mode: off
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://192.168.8.138:5000
+Press CTRL+C to quit

@@ -1,0 +1,253 @@
+2026-01-31 13:37:16,394 INFO: Starting server [in C:\Users\Andrei\Downloads\LIBRO\Server.py:19]
+2026-01-31 13:37:22,096 INFO: Starting server [in C:\Users\Andrei\Downloads\LIBRO\Server.py:19]
+2026-01-31 13:37:28,786 INFO: Starting server [in C:\Users\Andrei\Downloads\LIBRO\Server.py:19]
+2026-01-31 13:37:53,322 INFO: Starting server [in C:\Users\Andrei\Downloads\LIBRO\Server.py:19]
+2026-01-31 13:41:19,745 ERROR: Unhandled exception: [in C:\Users\Andrei\Downloads\LIBRO\Server.py:72]
+Traceback (most recent call last):
+  File "C:\Users\Andrei\Downloads\LIBRO\.venv\Lib\site-packages\flask\app.py", line 917, in full_dispatch_request
+    rv = self.dispatch_request()
+  File "C:\Users\Andrei\Downloads\LIBRO\.venv\Lib\site-packages\flask\app.py", line 902, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+  File "C:\Users\Andrei\Downloads\LIBRO\Server.py", line 91, in manage_files
+    def find_csvs_in_root():
+               ^^^^^^^^^^^^^
+  File "C:\Users\Andrei\Downloads\LIBRO\.venv\Lib\site-packages\flask\templating.py", line 150, in render_template
+    return _render(app, template, context)
+  File "C:\Users\Andrei\Downloads\LIBRO\.venv\Lib\site-packages\flask\templating.py", line 131, in _render
+    rv = template.render(context)
+  File "C:\Users\Andrei\Downloads\LIBRO\.venv\Lib\site-packages\jinja2\environment.py", line 1295, in render
+    self.environment.handle_exception()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\Andrei\Downloads\LIBRO\.venv\Lib\site-packages\jinja2\environment.py", line 942, in handle_exception
+    raise rewrite_traceback_stack(source=source)
+  File "C:\Users\Andrei\Downloads\LIBRO\templates\servers.html", line 1, in top-level template code
+    {% extends "base.html" %}
+  File "C:\Users\Andrei\Downloads\LIBRO\templates\base.html", line 12, in top-level template code
+    <a class="navbar-brand" href="{{ url_for('manage_servers') }}">Server Manager</a>
+    ^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Andrei\Downloads\LIBRO\.venv\Lib\site-packages\flask\app.py", line 1121, in url_for
+    return self.handle_url_build_error(error, endpoint, values)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Andrei\Downloads\LIBRO\.venv\Lib\site-packages\flask\app.py", line 1110, in url_for
+    rv = url_adapter.build(  # type: ignore[union-attr]
+        endpoint,
+    ...<3 lines>...
+        force_external=_external,
+    )
+  File "C:\Users\Andrei\Downloads\LIBRO\.venv\Lib\site-packages\werkzeug\routing\map.py", line 924, in build
+    raise BuildError(endpoint, values, method, self)
+werkzeug.routing.exceptions.BuildError: Could not build url for endpoint 'manage_servers'. Did you mean 'manage_files' instead?
+2026-01-31 13:41:19,790 ERROR: Exception on /files [GET] [in C:\Users\Andrei\Downloads\LIBRO\.venv\Lib\site-packages\flask\app.py:875]
+Traceback (most recent call last):
+  File "C:\Users\Andrei\Downloads\LIBRO\.venv\Lib\site-packages\flask\app.py", line 917, in full_dispatch_request
+    rv = self.dispatch_request()
+  File "C:\Users\Andrei\Downloads\LIBRO\.venv\Lib\site-packages\flask\app.py", line 902, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+  File "C:\Users\Andrei\Downloads\LIBRO\Server.py", line 91, in manage_files
+    def find_csvs_in_root():
+               ^^^^^^^^^^^^^
+  File "C:\Users\Andrei\Downloads\LIBRO\.venv\Lib\site-packages\flask\templating.py", line 150, in render_template
+    return _render(app, template, context)
+  File "C:\Users\Andrei\Downloads\LIBRO\.venv\Lib\site-packages\flask\templating.py", line 131, in _render
+    rv = template.render(context)
+  File "C:\Users\Andrei\Downloads\LIBRO\.venv\Lib\site-packages\jinja2\environment.py", line 1295, in render
+    self.environment.handle_exception()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\Andrei\Downloads\LIBRO\.venv\Lib\site-packages\jinja2\environment.py", line 942, in handle_exception
+    raise rewrite_traceback_stack(source=source)
+  File "C:\Users\Andrei\Downloads\LIBRO\templates\servers.html", line 1, in top-level template code
+    {% extends "base.html" %}
+  File "C:\Users\Andrei\Downloads\LIBRO\templates\base.html", line 12, in top-level template code
+    <a class="navbar-brand" href="{{ url_for('manage_servers') }}">Server Manager</a>
+    ^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Andrei\Downloads\LIBRO\.venv\Lib\site-packages\flask\app.py", line 1121, in url_for
+    return self.handle_url_build_error(error, endpoint, values)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Andrei\Downloads\LIBRO\.venv\Lib\site-packages\flask\app.py", line 1110, in url_for
+    rv = url_adapter.build(  # type: ignore[union-attr]
+        endpoint,
+    ...<3 lines>...
+        force_external=_external,
+    )
+  File "C:\Users\Andrei\Downloads\LIBRO\.venv\Lib\site-packages\werkzeug\routing\map.py", line 924, in build
+    raise BuildError(endpoint, values, method, self)
+werkzeug.routing.exceptions.BuildError: Could not build url for endpoint 'manage_servers'. Did you mean 'manage_files' instead?
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\Andrei\Downloads\LIBRO\.venv\Lib\site-packages\flask\app.py", line 1511, in wsgi_app
+    response = self.full_dispatch_request()
+  File "C:\Users\Andrei\Downloads\LIBRO\.venv\Lib\site-packages\flask\app.py", line 919, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+  File "C:\Users\Andrei\Downloads\LIBRO\.venv\Lib\site-packages\flask\app.py", line 809, in handle_user_exception
+    return self.ensure_sync(handler)(e)  # type: ignore[no-any-return]
+           ~~~~~~~~~~~~~~~~~~~~~~~~~^^^
+  File "C:\Users\Andrei\Downloads\LIBRO\Server.py", line 74, in handle_exception
+    'size': os.path.getsize(full) if os.path.isfile(full) else None,
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Andrei\Downloads\LIBRO\.venv\Lib\site-packages\flask\templating.py", line 150, in render_template
+    return _render(app, template, context)
+  File "C:\Users\Andrei\Downloads\LIBRO\.venv\Lib\site-packages\flask\templating.py", line 131, in _render
+    rv = template.render(context)
+  File "C:\Users\Andrei\Downloads\LIBRO\.venv\Lib\site-packages\jinja2\environment.py", line 1295, in render
+    self.environment.handle_exception()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\Andrei\Downloads\LIBRO\.venv\Lib\site-packages\jinja2\environment.py", line 942, in handle_exception
+    raise rewrite_traceback_stack(source=source)
+  File "C:\Users\Andrei\Downloads\LIBRO\templates\error.html", line 1, in top-level template code
+    {% extends "base.html" %}
+  File "C:\Users\Andrei\Downloads\LIBRO\templates\base.html", line 12, in top-level template code
+    <a class="navbar-brand" href="{{ url_for('manage_servers') }}">Server Manager</a>
+    ^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Andrei\Downloads\LIBRO\.venv\Lib\site-packages\flask\app.py", line 1121, in url_for
+    return self.handle_url_build_error(error, endpoint, values)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Andrei\Downloads\LIBRO\.venv\Lib\site-packages\flask\app.py", line 1110, in url_for
+    rv = url_adapter.build(  # type: ignore[union-attr]
+        endpoint,
+    ...<3 lines>...
+        force_external=_external,
+    )
+  File "C:\Users\Andrei\Downloads\LIBRO\.venv\Lib\site-packages\werkzeug\routing\map.py", line 924, in build
+    raise BuildError(endpoint, values, method, self)
+werkzeug.routing.exceptions.BuildError: Could not build url for endpoint 'manage_servers'. Did you mean 'manage_files' instead?
+2026-01-31 13:42:56,186 ERROR: Unhandled exception: [in C:\Users\Andrei\Downloads\LIBRO\Server.py:72]
+Traceback (most recent call last):
+  File "C:\Users\Andrei\Downloads\LIBRO\.venv\Lib\site-packages\flask\app.py", line 917, in full_dispatch_request
+    rv = self.dispatch_request()
+  File "C:\Users\Andrei\Downloads\LIBRO\.venv\Lib\site-packages\flask\app.py", line 902, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+  File "C:\Users\Andrei\Downloads\LIBRO\Server.py", line 91, in manage_files
+    def find_csvs_in_root():
+               ^^^^^^^^^^^^^
+  File "C:\Users\Andrei\Downloads\LIBRO\.venv\Lib\site-packages\flask\templating.py", line 150, in render_template
+    return _render(app, template, context)
+  File "C:\Users\Andrei\Downloads\LIBRO\.venv\Lib\site-packages\flask\templating.py", line 131, in _render
+    rv = template.render(context)
+  File "C:\Users\Andrei\Downloads\LIBRO\.venv\Lib\site-packages\jinja2\environment.py", line 1295, in render
+    self.environment.handle_exception()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\Andrei\Downloads\LIBRO\.venv\Lib\site-packages\jinja2\environment.py", line 942, in handle_exception
+    raise rewrite_traceback_stack(source=source)
+  File "C:\Users\Andrei\Downloads\LIBRO\templates\servers.html", line 1, in top-level template code
+    {% extends "base.html" %}
+  File "C:\Users\Andrei\Downloads\LIBRO\templates\base.html", line 12, in top-level template code
+    <a class="navbar-brand" href="{{ url_for('manage_files') }}">CSV Manager</a>
+    ^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Andrei\Downloads\LIBRO\.venv\Lib\site-packages\flask\app.py", line 1121, in url_for
+    return self.handle_url_build_error(error, endpoint, values)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Andrei\Downloads\LIBRO\.venv\Lib\site-packages\flask\app.py", line 1110, in url_for
+    rv = url_adapter.build(  # type: ignore[union-attr]
+        endpoint,
+    ...<3 lines>...
+        force_external=_external,
+    )
+  File "C:\Users\Andrei\Downloads\LIBRO\.venv\Lib\site-packages\werkzeug\routing\map.py", line 924, in build
+    raise BuildError(endpoint, values, method, self)
+werkzeug.routing.exceptions.BuildError: Could not build url for endpoint 'manage_servers'. Did you mean 'manage_files' instead?
+2026-01-31 13:42:56,198 ERROR: Exception on /files [GET] [in C:\Users\Andrei\Downloads\LIBRO\.venv\Lib\site-packages\flask\app.py:875]
+Traceback (most recent call last):
+  File "C:\Users\Andrei\Downloads\LIBRO\.venv\Lib\site-packages\flask\app.py", line 917, in full_dispatch_request
+    rv = self.dispatch_request()
+  File "C:\Users\Andrei\Downloads\LIBRO\.venv\Lib\site-packages\flask\app.py", line 902, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+  File "C:\Users\Andrei\Downloads\LIBRO\Server.py", line 91, in manage_files
+    def find_csvs_in_root():
+               ^^^^^^^^^^^^^
+  File "C:\Users\Andrei\Downloads\LIBRO\.venv\Lib\site-packages\flask\templating.py", line 150, in render_template
+    return _render(app, template, context)
+  File "C:\Users\Andrei\Downloads\LIBRO\.venv\Lib\site-packages\flask\templating.py", line 131, in _render
+    rv = template.render(context)
+  File "C:\Users\Andrei\Downloads\LIBRO\.venv\Lib\site-packages\jinja2\environment.py", line 1295, in render
+    self.environment.handle_exception()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\Andrei\Downloads\LIBRO\.venv\Lib\site-packages\jinja2\environment.py", line 942, in handle_exception
+    raise rewrite_traceback_stack(source=source)
+  File "C:\Users\Andrei\Downloads\LIBRO\templates\servers.html", line 1, in top-level template code
+    {% extends "base.html" %}
+  File "C:\Users\Andrei\Downloads\LIBRO\templates\base.html", line 12, in top-level template code
+    <a class="navbar-brand" href="{{ url_for('manage_files') }}">CSV Manager</a>
+    ^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Andrei\Downloads\LIBRO\.venv\Lib\site-packages\flask\app.py", line 1121, in url_for
+    return self.handle_url_build_error(error, endpoint, values)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Andrei\Downloads\LIBRO\.venv\Lib\site-packages\flask\app.py", line 1110, in url_for
+    rv = url_adapter.build(  # type: ignore[union-attr]
+        endpoint,
+    ...<3 lines>...
+        force_external=_external,
+    )
+  File "C:\Users\Andrei\Downloads\LIBRO\.venv\Lib\site-packages\werkzeug\routing\map.py", line 924, in build
+    raise BuildError(endpoint, values, method, self)
+werkzeug.routing.exceptions.BuildError: Could not build url for endpoint 'manage_servers'. Did you mean 'manage_files' instead?
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\Andrei\Downloads\LIBRO\.venv\Lib\site-packages\flask\app.py", line 1511, in wsgi_app
+    response = self.full_dispatch_request()
+  File "C:\Users\Andrei\Downloads\LIBRO\.venv\Lib\site-packages\flask\app.py", line 919, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+  File "C:\Users\Andrei\Downloads\LIBRO\.venv\Lib\site-packages\flask\app.py", line 809, in handle_user_exception
+    return self.ensure_sync(handler)(e)  # type: ignore[no-any-return]
+           ~~~~~~~~~~~~~~~~~~~~~~~~~^^^
+  File "C:\Users\Andrei\Downloads\LIBRO\Server.py", line 74, in handle_exception
+    'size': os.path.getsize(full) if os.path.isfile(full) else None,
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Andrei\Downloads\LIBRO\.venv\Lib\site-packages\flask\templating.py", line 150, in render_template
+    return _render(app, template, context)
+  File "C:\Users\Andrei\Downloads\LIBRO\.venv\Lib\site-packages\flask\templating.py", line 131, in _render
+    rv = template.render(context)
+  File "C:\Users\Andrei\Downloads\LIBRO\.venv\Lib\site-packages\jinja2\environment.py", line 1295, in render
+    self.environment.handle_exception()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\Andrei\Downloads\LIBRO\.venv\Lib\site-packages\jinja2\environment.py", line 942, in handle_exception
+    raise rewrite_traceback_stack(source=source)
+  File "C:\Users\Andrei\Downloads\LIBRO\templates\error.html", line 1, in top-level template code
+    {% extends "base.html" %}
+  File "C:\Users\Andrei\Downloads\LIBRO\templates\base.html", line 12, in top-level template code
+    <a class="navbar-brand" href="{{ url_for('manage_files') }}">CSV Manager</a>
+    ^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Andrei\Downloads\LIBRO\.venv\Lib\site-packages\flask\app.py", line 1121, in url_for
+    return self.handle_url_build_error(error, endpoint, values)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Andrei\Downloads\LIBRO\.venv\Lib\site-packages\flask\app.py", line 1110, in url_for
+    rv = url_adapter.build(  # type: ignore[union-attr]
+        endpoint,
+    ...<3 lines>...
+        force_external=_external,
+    )
+  File "C:\Users\Andrei\Downloads\LIBRO\.venv\Lib\site-packages\werkzeug\routing\map.py", line 924, in build
+    raise BuildError(endpoint, values, method, self)
+werkzeug.routing.exceptions.BuildError: Could not build url for endpoint 'manage_servers'. Did you mean 'manage_files' instead?
+2026-01-31 14:04:18,972 INFO: Starting server [in C:\Users\Andrei\Downloads\LIBRO\Server.py:19]
+2026-01-31 14:10:00,867 INFO: Starting server [in C:\Users\Andrei\Downloads\LIBRO\Server.py:19]
+2026-01-31 14:22:20,374 INFO: Starting server [in C:\Users\Andrei\Downloads\LIBRO\Server.py:19]
+2026-01-31 14:22:37,675 INFO: Starting server [in C:\Users\Andrei\Downloads\LIBRO\Server.py:19]
+2026-01-31 14:27:35,434 INFO: Starting server [in C:\Users\Andrei\Downloads\LIBRO\Server.py:20]
+2026-01-31 14:30:12,100 INFO: Starting server [in C:\Users\Andrei\Downloads\LIBRO\Server.py:20]
+2026-01-31 14:40:21,892 INFO: Starting server [in C:\Users\Andrei\Downloads\LIBRO\Server.py:20]
+2026-01-31 14:40:52,649 ERROR: Unhandled exception: [in C:\Users\Andrei\Downloads\LIBRO\Server.py:157]
+Traceback (most recent call last):
+  File "C:\Users\Andrei\Downloads\LIBRO\.venv\Lib\site-packages\flask\app.py", line 917, in full_dispatch_request
+    rv = self.dispatch_request()
+  File "C:\Users\Andrei\Downloads\LIBRO\.venv\Lib\site-packages\flask\app.py", line 902, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+  File "C:\Users\Andrei\Downloads\LIBRO\Server.py", line 171, in manage_files
+    entries = list_dir(path)
+  File "C:\Users\Andrei\Downloads\LIBRO\Server.py", line 96, in list_dir
+    for name in sorted(os.listdir(base)):
+                       ~~~~~~~~~~^^^^^^
+FileNotFoundError: [WinError 3] The system cannot find the path specified: 'C:\\Users\\Andrei\\Downloads\\LIBRO\\csv_files\\csv_files'
+2026-01-31 14:47:40,173 INFO: Starting server [in C:\Users\Andrei\Downloads\LIBRO\Server.py:20]
+2026-01-31 14:57:44,506 INFO: Starting server [in C:\Users\Andrei\Downloads\LIBRO\Server.py:20]
+2026-01-31 18:33:51,408 INFO: Starting server [in c:\Users\Andrei\Downloads\LIBRO\Server.py:20]
+2026-01-31 18:36:30,543 INFO: Starting server [in c:\Users\Andrei\Downloads\LIBRO\Server.py:20]
+2026-01-31 18:36:45,919 INFO: Starting server [in c:\Users\Andrei\Downloads\LIBRO\Server.py:20]

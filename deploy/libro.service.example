@@ -1,0 +1,13 @@
+[Unit]
+Description=LIBRO Flask App
+After=network.target
+
+[Service]
+User=pi
+WorkingDirectory=/home/pi/LIBRO
+Environment="PATH=/home/pi/LIBRO/.venv/bin"
+ExecStart=/home/pi/LIBRO/.venv/bin/python /home/pi/LIBRO/Server.py
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

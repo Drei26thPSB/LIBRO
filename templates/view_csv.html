@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+  <h1>Viewing: {{ filename }}</h1>
+  <div class="mb-2">
+    <a class="btn btn-secondary" href="{{ url_for('manage_files') }}">Back</a>
+    <a class="btn btn-outline-secondary" href="{{ url_for('download', filename=filename) }}">Download CSV</a>
+  </div>
+
+  <div class="table-responsive">
+    <table class="table table-bordered table-sm">
+      <thead>
+        <tr>
+          {% for h in headers %}
+          <th>{{ h }}</th>
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in rows %}
+        <tr>
+          {% for cell in row %}
+          <td>{{ cell }}</td>
+          {% endfor %}
+        </tr>
+        {% endfor %}
+        {% if not rows %}
+        <tr><td colspan="{{ headers|length if headers else 1 }}">End of Log...</td></tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

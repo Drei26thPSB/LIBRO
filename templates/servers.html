@@ -1,0 +1,152 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+  <h1>CSV File Manager</h1>
+  <p class="text-muted">Showing attendance logs only — CSV files named like <code>YYYY-MM-DD.csv</code>. All actions are limited to the <code>csv_files</code> folder.</p>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      <div>
+        {% for category, msg in messages %}
+          <div class="alert alert-{{ 'success' if category == 'success' else 'danger' }}">{{ msg }}</div>
+        {% endfor %}
+      </div>
+    {% endif %}
+  {% endwith %}
+
+  <nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+      {% set parts = (path.split('/') if path else []) %}
+      <li class="breadcrumb-item"><a href="{{ url_for('manage_files') }}">Root</a></li>
+      {% for i in range(parts|length) %}
+        {% set seg = parts[:i+1]|join('/') %}
+        <li class="breadcrumb-item"><a href="{{ url_for('manage_files', path=seg) }}">{{ parts[i] }}</a></li>
+      {% endfor %}
+    </ol>
+  </nav>
+
+  <div class="row mb-4">
+    <div class="col-md-6">
+      <form id="upload-form" method="post" action="{{ url_for('upload') }}" enctype="multipart/form-data" class="mb-2">
+        <input type="hidden" name="target" value="{{ path if path else CSV_ROOT }}">
+        <div class="input-group">
+          <input type="file" name="file" class="form-control" accept=".csv">
+          <button class="btn btn-primary" type="submit">Upload</button>
+        </div>
+        <div class="form-text">Or drag & drop CSV files onto the area below.</div>
+      </form>
+
+      <div id="drop-area" class="border rounded p-3 text-center" style="min-height:80px">
+        Drop CSV files here to upload
+      </div>
+    </div>
+
+    <div class="col-md-6">
+      <form method="post" action="{{ url_for('mkdir') }}" class="mb-2">
+        <input type="hidden" name="parent" value="{{ path }}">
+        <div class="input-group">
+          <input name="name" class="form-control" placeholder="New folder name">
+          <button class="btn btn-secondary" type="submit">Create folder</button>
+        </div>
+      </form>
+
+      <div>
+        <small class="text-muted">Available folders:</small>
+        <select class="form-select mt-2" id="folder-select">
+          {% for f in folders %}
+          <option value="{{ f }}">{{ f if f else '(root)' }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <div class="mb-4">
+    <h3>Detected CSV logs ({{ CSV_ROOT }})</h3>
+    <ul class="list-unstyled">
+      {% for f in csv_list %}
+      <li class="mb-2">
+        <a href="{{ url_for('view_csv', filename=f) }}">{{ f }}</a>
+        <small class="text-muted">—</small>
+        <a href="{{ url_for('download', filename=f) }}">Download</a>
+      </li>
+      {% else %}
+      <li>No CSV files found in {{ CSV_ROOT }}</li>
+      {% endfor %}
+    </ul>
+  </div>
+
+  <table class="table table-sm table-hover">
+    <thead>
+      <tr><th>Name</th><th>Type</th><th>Size</th><th>Actions</th></tr>
+    </thead>
+    <tbody>
+      {% for e in entries %}
+      <tr>
+        <td>
+          {% if e.is_dir %}
+            <a href="{{ url_for('manage_files', path=e.rel) }}">📁 {{ e.name }}</a>
+          {% else %}
+            {{ e.name }}
+          {% endif %}
+        </td>
+        <td>{{ 'Folder' if e.is_dir else 'CSV' }}</td>
+        <td>{{ (e.size ~ ' bytes') if e.size else '-' }}</td>
+        <td>
+          {% if not e.is_dir %}
+            <a class="btn btn-sm btn-outline-primary" href="{{ url_for('view_csv', filename=e.full_rel) }}">View</a>
+            <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('download', filename=e.full_rel) }}">Download</a>
+          {% endif %}
+
+          <form method="post" action="{{ url_for('rename') }}" class="d-inline-block ms-1">
+            <input type="hidden" name="path" value="{{ e.full_rel }}">
+            <input name="new_name" placeholder="New name" style="width:120px" class="form-control d-inline-block">
+            <button class="btn btn-sm btn-outline-warning" type="submit">Rename</button>
+          </form>
+
+          <form method="post" action="{{ url_for('move') }}" class="d-inline-block ms-1">
+            <input type="hidden" name="path" value="{{ e.full_rel }}">
+            <select name="dest_folder" class="form-select d-inline-block" style="width:140px">
+              {% for f in folders %}
+              <option value="{{ f }}">{{ f if f else '(root)' }}</option>
+              {% endfor %}
+            </select>
+            <button class="btn btn-sm btn-outline-info" type="submit">Move</button>
+          </form>
+
+          <form method="post" action="{{ url_for('delete') }}" class="d-inline-block ms-1" onsubmit="return confirm('Delete this item?');">
+            <input type="hidden" name="path" value="{{ e.full_rel }}">
+            <button class="btn btn-sm btn-outline-danger" type="submit">Delete</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+      {% if not entries %}
+      <tr><td colspan="4">This folder is empty</td></tr>
+      {% endif %}
+    </tbody>
+  </table>
+</div>
+
+<script>
+// Drag & drop
+const dropArea = document.getElementById('drop-area');
+const uploadForm = document.getElementById('upload-form');
+
+dropArea.addEventListener('dragover', (e) => { e.preventDefault(); dropArea.classList.add('bg-light'); });
+dropArea.addEventListener('dragleave', () => { dropArea.classList.remove('bg-light'); });
+
+dropArea.addEventListener('drop', (e) => {
+  e.preventDefault(); dropArea.classList.remove('bg-light');
+  const files = e.dataTransfer.files;
+  if (!files.length) return;
+  const formData = new FormData();
+  formData.append('file', files[0]);
+  formData.append('target', '{{ path if path else CSV_ROOT }}');
+  fetch("{{ url_for('upload') }}", { method: 'POST', body: formData })
+    .then(r => { if (r.redirected) window.location = r.url; else window.location.reload(); })
+    .catch(() => alert('Upload failed'));
+});
+</script>
+{% endblock %}
