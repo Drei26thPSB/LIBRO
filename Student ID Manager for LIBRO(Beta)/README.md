@@ -1,31 +1,34 @@
 # Student ID Manager for LIBRO (Beta)
 
-Standalone desktop app for yearly student ID maintenance.
+Windows desktop app (C# WinForms) for yearly student ID maintenance.
 
 ## What it does
 
 - Add, update, remove, search, and sort student records.
-- Saves records to `students.csv` in the LIBRO root.
-- Syncs the `students = { ... }` block inside `Attendance.py`.
-- Optional: `Commit + Push` for automatic Render redeploy workflow.
+- Saves records to `students.csv` in LIBRO root.
+- Syncs the `students = { ... }` block in `Attendance.py`.
+- Optional: `Commit + Push (Git)` for your deployment flow.
+
+## Requirement
+
+Install .NET SDK 8.0 (or newer):
+
+https://dotnet.microsoft.com/download
 
 ## Run
 
 From LIBRO root:
 
 ```powershell
-py "Student ID Manager for LIBRO(Beta)\StudentIDManager.py"
+dotnet run --project "Student ID Manager for LIBRO(Beta)\StudentIDManager.csproj"
 ```
 
-## Safe workflow
+## Build EXE
 
-1. Update student records in the app.
-2. Click `Save + Sync`.
-3. Test locally.
-4. Click `Commit + Push (Git)` when ready.
+```powershell
+dotnet publish "Student ID Manager for LIBRO(Beta)\StudentIDManager.csproj" -c Release -r win-x64 --self-contained false
+```
 
-## Notes
+Published output:
 
-- `Student ID` and `Name` are required.
-- `Grade` and `Section` are optional but recommended.
-- If `students.csv` does not exist yet, the app tries to import current students from `Attendance.py`.
+`Student ID Manager for LIBRO(Beta)\bin\Release\net8.0-windows\win-x64\publish\`
