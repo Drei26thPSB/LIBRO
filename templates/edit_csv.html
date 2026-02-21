@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container pb-4">
+  <div class="panel mb-3 d-flex flex-wrap gap-2 justify-content-between align-items-center">
+    <div>
+      <h1 class="h4 mb-1">Edit CSV</h1>
+      <p class="text-muted mb-0">{{ filename }}</p>
+    </div>
+    <a class="btn btn-outline-secondary" href="{{ url_for('manage_files') }}">Back to Manager</a>
+  </div>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      <div class="mb-3">
+        {% for category, msg in messages %}
+          <div class="alert alert-{{ 'success' if category == 'success' else 'danger' }}">{{ msg }}</div>
+        {% endfor %}
+      </div>
+    {% endif %}
+  {% endwith %}
+
+  <div class="panel">
+    <form method="post" action="{{ url_for('save_csv', filename=filename) }}">
+      <label for="content" class="form-label fw-semibold">CSV Content</label>
+      <textarea id="content" name="content" class="form-control" style="min-height:480px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;">{{ content }}</textarea>
+      <button class="btn btn-primary mt-3" type="submit">Save CSV</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

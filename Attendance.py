@@ -1,5 +1,11 @@
-import tkinter as tk
-from PIL import Image, ImageTk
+try:
+    import tkinter as tk
+    from tkinter import messagebox
+    TK_AVAILABLE = True
+except Exception:
+    tk = None
+    messagebox = None
+    TK_AVAILABLE = False
 import datetime
 import csv
 import time
@@ -8,12 +14,11 @@ import sys
 import subprocess
 import socket
 import atexit
+from PIL import Image, ImageTk
 
 # ---------------- GLOBALS ----------------
 # Store logs under project-local `csv_files` so code is portable across platforms (Windows/Linux/RPi)
 CSV_ROOT = os.path.join(os.path.dirname(__file__), 'csv_files')
-attendance_date = datetime.datetime.now().strftime("%Y-%m-%d")
-csv_filename = os.path.join(CSV_ROOT, f"{attendance_date}.csv")
 # Ensure directory exists
 try:
     os.makedirs(CSV_ROOT, exist_ok=True)
@@ -33,16 +38,126 @@ students = {
     "S1896": {"name": "Sebastian Andrei Abanilla", "grade": "12", "section": "MAPAGPALAYA"},
     "S24-0150": {"name": "Joshmar Sy", "grade": "12", "section": "MAPAGPALAYA"},
     "S19-0212": {"name": "Dwayne Bodota", "grade": "12", "section": "MAPAGNILAY"},
-    "S24-0151": {"name": "Jelliuah Sureta", "grade": "12", "section": "MAPAGNILAY"},
-    "S1875": {"name": "Reign Yra Fernandez", "grade": "12", "section": "MAPAGNILAY"},
+    "S24-0151": {"name": "Jelliuah Sureta", "grade": "12", "section": "MAPAGPALAYA"},
+    "S1875": {"name": "Reign Yra Fernandez", "grade": "12", "section": "MAPAGPALAYA"},
     "S16-0199": {"name": "Kolin Dwayne Lacson", "grade": "12", "section": "MAPAGNILAY"},
-    "S22-0165": {"name": "Isabelle Maristela", "grade": "12", "section": "MAPAGNILAY"},
+    "S22-0165": {"name": "Isabelle Maristela", "grade": "12", "section": "MAPAGPALAYA"},
 }
 
+CSV_HEADERS = ["Student ID", "Name", "Section", "Purpose", "Time In", "Time Out", "Status"]
+
 current_student = None
+current_student_id = None
 last_scan_time = {}
 purpose_options = ["Study", "Borrow Book", "Research", "Use Ipad/PC", "Others"]
-SCAN_TIMEOUT = 60 # seconds
+SCAN_TIMEOUT = 3  # anti-double-scan cooldown in seconds
+
+# ---------------- UI STYLE ----------------
+APP_BG = "#f2f4f7"
+CARD_BG = "#ffffff"
+BORDER = "#e5e7eb"
+TEXT_MAIN = "#111827"
+TEXT_MUTED = "#6b7280"
+PRIMARY = "#0a84ff"
+PRIMARY_ACTIVE = "#0866c5"
+WARN = "#9a3412"
+DANGER = "#b42318"
+FONT = "Segoe UI"
+
+
+def get_attendance_date():
+    return datetime.datetime.now().strftime("%Y-%m-%d")
+
+
+def get_csv_filename():
+    return os.path.join(CSV_ROOT, f"{get_attendance_date()}.csv")
+
+
+def normalize_row(row):
+    time_in = row.get("Time In", "").strip() or row.get("Time", "").strip()
+    time_out = row.get("Time Out", "").strip()
+    status = row.get("Status", "").strip() or ("OUT" if time_out else "IN")
+    return {
+        "Student ID": row.get("Student ID", "").strip(),
+        "Name": row.get("Name", "").strip(),
+        "Section": row.get("Section", "").strip(),
+        "Purpose": row.get("Purpose", "").strip(),
+        "Time In": time_in,
+        "Time Out": time_out,
+        "Status": status,
+    }
+
+
+def read_attendance_rows():
+    path = get_csv_filename()
+    if not os.path.exists(path):
+        return []
+    try:
+        with open(path, "r", newline="", encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            if not reader.fieldnames:
+                return []
+            return [normalize_row(row) for row in reader]
+    except Exception as e:
+        print(f"Error reading attendance rows: {e}")
+        return []
+
+
+def write_attendance_rows(rows):
+    path = get_csv_filename()
+    try:
+        with open(path, "w", newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(f, fieldnames=CSV_HEADERS)
+            writer.writeheader()
+            for row in rows:
+                writer.writerow(normalize_row(row))
+    except PermissionError:
+        print(f"Permission denied: Cannot write to {path}")
+    except Exception as e:
+        print(f"Error writing attendance rows: {e}")
+
+
+def get_open_session_index(rows, student_id):
+    for i in range(len(rows) - 1, -1, -1):
+        row = rows[i]
+        if row["Student ID"] == student_id and row["Time In"] and not row["Time Out"]:
+            return i
+    return None
+
+
+def has_open_session(student_id):
+    rows = read_attendance_rows()
+    return get_open_session_index(rows, student_id) is not None
+
+
+def record_time_in(student_id, student, purpose):
+    rows = read_attendance_rows()
+    time_in = datetime.datetime.now().strftime("%H:%M:%S")
+    rows.append(
+        {
+            "Student ID": student_id,
+            "Name": student["name"],
+            "Section": student["section"],
+            "Purpose": purpose,
+            "Time In": time_in,
+            "Time Out": "",
+            "Status": "IN",
+        }
+    )
+    write_attendance_rows(rows)
+    return time_in
+
+
+def record_time_out(student_id):
+    rows = read_attendance_rows()
+    idx = get_open_session_index(rows, student_id)
+    if idx is None:
+        return None
+    time_out = datetime.datetime.now().strftime("%H:%M:%S")
+    rows[idx]["Time Out"] = time_out
+    rows[idx]["Status"] = "OUT"
+    write_attendance_rows(rows)
+    return time_out
 
 # ---------------- BEEP (cross-platform) ----------------
 import shutil
@@ -84,57 +199,16 @@ def play_double_beep():
 
 # ---------------- CUSTOM DIALOGS ----------------
 def show_info_dialog(title, message):
-    dialog = tk.Toplevel(root)
-    dialog.title(title)
-    dialog.geometry("700x300")
-    dialog.attributes("-topmost", True)
-    dialog.resizable(False, False)
-    
-    tk.Label(dialog, text=message, font=("Arial", 28), wraplength=650, justify=tk.CENTER, pady=20).pack()
-    tk.Button(dialog, text="OK", width=20, height=2, font=("Arial", 24), command=dialog.destroy).pack(pady=20)
-    root.wait_window(dialog)
+    messagebox.showinfo(title, message)
 
 def show_error_dialog(title, message):
-    dialog = tk.Toplevel(root)
-    dialog.title(title)
-    dialog.geometry("700x300")
-    dialog.attributes("-topmost", True)
-    dialog.resizable(False, False)
-    
-    tk.Label(dialog, text=message, font=("Arial", 28), wraplength=650, justify=tk.CENTER, pady=20, fg="red").pack()
-    tk.Button(dialog, text="OK", width=20, height=2, font=("Arial", 24), command=dialog.destroy).pack(pady=20)
-    root.wait_window(dialog)
+    messagebox.showerror(title, message)
 
 def show_warning_dialog(title, message):
-    dialog = tk.Toplevel(root)
-    dialog.title(title)
-    dialog.geometry("700x300")
-    dialog.attributes("-topmost", True)
-    dialog.resizable(False, False)
-    
-    tk.Label(dialog, text=message, font=("Arial", 28), wraplength=650, justify=tk.CENTER, pady=20, fg="orange").pack()
-    tk.Button(dialog, text="OK", width=20, height=2, font=("Arial", 24), command=dialog.destroy).pack(pady=20)
-    root.wait_window(dialog)
+    messagebox.showwarning(title, message)
 
 def show_yesno_dialog(title, message):
-    dialog = tk.Toplevel(root)
-    dialog.title(title)
-    dialog.geometry("700x350")
-    dialog.attributes("-topmost", True)
-    dialog.resizable(False, False)
-    
-    result = [None]
-    
-    tk.Label(dialog, text=message, font=("Arial", 26), wraplength=650, justify=tk.CENTER, pady=20).pack()
-    
-    button_frame = tk.Frame(dialog)
-    button_frame.pack(pady=20)
-    
-    tk.Button(button_frame, text="YES", width=15, height=2, font=("Arial", 24), command=lambda: (result.__setitem__(0, True), dialog.destroy())).pack(side=tk.LEFT, padx=10)
-    tk.Button(button_frame, text="NO", width=15, height=2, font=("Arial", 24), command=lambda: (result.__setitem__(0, False), dialog.destroy())).pack(side=tk.LEFT, padx=10)
-    
-    root.wait_window(dialog)
-    return result[0]
+    return messagebox.askyesno(title, message)
 
 
 def show_server_banner(ip, duration=8000):
@@ -165,22 +239,6 @@ def show_server_banner(ip, duration=8000):
     except Exception:
         pass
 
-# ---------------- LOG ----------------
-def log_attendance(student, purpose):
-    try:
-        time_str = datetime.datetime.now().strftime("%H:%M:%S")
-        file_exists = os.path.exists(csv_filename)
-        with open(csv_filename, "a", newline="") as f:
-            writer = csv.writer(f)
-            # Add header if file is new
-            if not file_exists:
-                writer.writerow(["Name", "Section", "Purpose", "Time"])
-            writer.writerow([student["name"], student["section"], purpose, time_str])
-    except PermissionError:
-        print(f"Permission denied: Cannot write to {csv_filename}")
-    except Exception as e:
-        print(f"Error logging attendance: {e}")
-
 # ---------------- UI UTIL ----------------
 def clear():
     for widget in root.winfo_children():
@@ -189,6 +247,17 @@ def clear():
     # Ensure background is at the back
     if bg_label:
         bg_label.lower()
+
+
+def build_card(title, subtitle=None):
+    clear()
+    card = tk.Frame(root, bg=CARD_BG, highlightbackground=BORDER, highlightthickness=1)
+    card.place(relx=0.5, rely=0.5, anchor="center", relwidth=0.74, relheight=0.82)
+
+    tk.Label(card, text=title, font=(FONT, 36, "bold"), bg=CARD_BG, fg=TEXT_MAIN).pack(pady=(30, 10))
+    if subtitle:
+        tk.Label(card, text=subtitle, font=(FONT, 16), bg=CARD_BG, fg=TEXT_MUTED, wraplength=900, justify=tk.CENTER).pack(pady=(0, 22))
+    return card
 
 
 # ---------------- STARTUP ----------------
@@ -201,12 +270,10 @@ def initial_prompt():
 
 # ---------------- LIBRARIAN VERIFY ----------------
 def librarian_verify_start():
-    clear()
-    tk.Label(root, text="Librarian Verification", font=("Arial", 48), bg="white", fg="black").pack(pady=30)
-    tk.Label(root, text="Scan Librarian ID to Begin", font=("Arial", 40), bg="white", fg="black").pack(pady=20)
+    card = build_card("Librarian Verification", "Scan Librarian ID to start attendance.")
 
-    entry = tk.Entry(root, font=("Arial", 32), width=20)
-    entry.pack(pady=30)
+    entry = tk.Entry(card, font=(FONT, 28), width=24, bd=0, highlightthickness=1, highlightbackground=BORDER)
+    entry.pack(pady=30, ipady=10)
     entry.focus_set()
 
     def check(event=None):
@@ -224,10 +291,9 @@ def librarian_verify_start():
     
 # ---------------- STANDBY ----------------
 def standby_mode():
-    clear()
-    tk.Label(root, text="Scan your ID", font=("Arial", 48), bg="white", fg="black").pack(pady=40)
-    entry = tk.Entry(root, font=("Arial", 32), width=20)
-    entry.pack(pady=30)
+    card = build_card("Scan your ID", "Student scan auto-detects Time In or Time Out.")
+    entry = tk.Entry(card, font=(FONT, 28), width=24, bd=0, highlightthickness=1, highlightbackground=BORDER)
+    entry.pack(pady=30, ipady=10)
     entry.focus_set()
 
     def process_scan(event=None):
@@ -241,12 +307,16 @@ def standby_mode():
             now = time.time()
             if sid in last_scan_time and now - last_scan_time[sid] < SCAN_TIMEOUT:
                 play_double_beep()
-                show_warning_dialog("Duplicate", "You already scanned recently.")
+                show_warning_dialog("Duplicate", "Please wait a moment before scanning again.")
                 return
             last_scan_time[sid] = now
-            global current_student
+            global current_student, current_student_id
+            current_student_id = sid
             current_student = students[sid]
-            select_purpose()
+            if has_open_session(sid):
+                confirm_time_out()
+            else:
+                select_purpose()
         else:
             play_double_beep()
             show_error_dialog("Not Found", "ID not recognized.")
@@ -255,51 +325,123 @@ def standby_mode():
 
 # ---------------- PURPOSE SELECT ----------------
 def select_purpose():
-    clear()
-    tk.Label(root, text=f"Hi {current_student['name']}!\nSelect Purpose:", font=("Arial", 32), bg="white", fg="black").pack(pady=20)
+    card = build_card(f"Hi, {current_student['name']}", "Select one or more purposes for this Time In.")
+    checkbox_vars = []
+
     for p in purpose_options:
-        tk.Button(root, text=p, width=40, height=2, font=("Arial", 24), command=lambda x=p: confirm_student(x)).pack(pady=12)
+        var = tk.BooleanVar(value=False)
+        checkbox_vars.append((p, var))
+        tk.Checkbutton(
+            card,
+            text=p,
+            variable=var,
+            onvalue=True,
+            offvalue=False,
+            font=(FONT, 20),
+            bg=CARD_BG,
+            fg=TEXT_MAIN,
+            anchor="w",
+            padx=15,
+            pady=8,
+            selectcolor="#f9fafb",
+            activebackground=CARD_BG,
+        ).pack(fill="x", padx=120, pady=4)
+
+    def submit_purposes():
+        selected = [label for label, var in checkbox_vars if var.get()]
+        if not selected:
+            play_double_beep()
+            show_warning_dialog("Purpose Required", "Select at least one purpose.")
+            return
+        confirm_student(", ".join(selected))
+
+    tk.Button(
+        card,
+        text="Confirm Time In",
+        width=20,
+        font=(FONT, 20, "bold"),
+        bg=PRIMARY,
+        fg="white",
+        activebackground=PRIMARY_ACTIVE,
+        activeforeground="white",
+        bd=0,
+        padx=20,
+        pady=10,
+        command=submit_purposes,
+    ).pack(pady=(24, 8))
+
+    tk.Button(
+        card,
+        text="Back",
+        width=20,
+        font=(FONT, 16),
+        bg="#f3f4f6",
+        fg=TEXT_MAIN,
+        bd=0,
+        padx=18,
+        pady=8,
+        command=standby_mode,
+    ).pack()
 
 # ---------------- CONFIRM ----------------
 def confirm_student(purpose):
     msg = (f"Name: {current_student['name']}\n"
            f"Grade: {current_student['grade']}\n"
            f"Section: {current_student['section']}\n"
-           f"Purpose: {purpose}")
+           f"Purpose: {purpose}\n\n"
+           f"Proceed with Time In?")
     if show_yesno_dialog("Confirm", msg):
         play_beep()
-        log_attendance(current_student, purpose)
-        show_info_dialog("Success", "Logged successfully!")
+        time_in = record_time_in(current_student_id, current_student, purpose)
+        show_info_dialog("Success", f"Time In recorded at {time_in}.")
         standby_mode()
     else:
         play_double_beep()
-        show_warning_dialog("Cancelled", "Please ask the librarian for assistance")
+        show_warning_dialog("Cancelled", "Time In was cancelled.")
+
+
+def confirm_time_out():
+    msg = (f"Name: {current_student['name']}\n"
+           f"Grade: {current_student['grade']}\n"
+           f"Section: {current_student['section']}\n\n"
+           f"Proceed with Time Out?")
+    if show_yesno_dialog("Confirm Time Out", msg):
+        time_out = record_time_out(current_student_id)
+        if time_out:
+            play_beep()
+            show_info_dialog("Success", f"Time Out recorded at {time_out}.")
+        else:
+            play_double_beep()
+            show_error_dialog("Error", "No active Time In found for this student.")
+        standby_mode()
+    else:
+        play_double_beep()
+        show_warning_dialog("Cancelled", "Time Out was cancelled.")
 
 # ---------------- ADMIN MENU ----------------
 def admin_menu():
-    clear()
-    tk.Label(root, text="Admin Portal", font=("Arial", 40), bg="white", fg="black").pack(pady=20)
-    tk.Button(root, text="View Today's Log", width=40, height=2, font=("Arial", 24), command=view_log).pack(pady=15)
-    tk.Button(root, text="Exit Admin", width=40, height=2, font=("Arial", 24), command=standby_mode).pack(pady=15)
-    tk.Button(root, text="Desktop Mode", width=40, height=2, font=("Arial", 24), command=enter_desktop_mode).pack(pady=15)
+    card = build_card("Admin Portal", "Attendance controls")
+    tk.Button(card, text="View Today's Log", width=30, height=2, font=(FONT, 20), bg="#111827", fg="white", bd=0, command=view_log).pack(pady=10)
+    tk.Button(card, text="Exit Admin", width=30, height=2, font=(FONT, 20), bg="#f3f4f6", fg=TEXT_MAIN, bd=0, command=standby_mode).pack(pady=10)
+    tk.Button(card, text="Desktop Mode", width=30, height=2, font=(FONT, 20), bg="#f3f4f6", fg=TEXT_MAIN, bd=0, command=enter_desktop_mode).pack(pady=10)
 
 def view_log():
-    clear()
-    tk.Label(root, text=f"Today's Logs ({attendance_date})", font=("Arial", 28), bg="white", fg="black").pack(pady=15)
+    card = build_card(f"Today's Logs ({get_attendance_date()})")
     
     # Create frame for text and scrollbar
-    frame = tk.Frame(root, bg="white")
-    frame.pack(pady=15, fill=tk.BOTH, expand=True)
+    frame = tk.Frame(card, bg=CARD_BG)
+    frame.pack(pady=15, fill=tk.BOTH, expand=True, padx=30)
     
     scrollbar = tk.Scrollbar(frame)
     scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
     
-    text = tk.Text(frame, width=90, height=12, font=("Arial", 14), yscrollcommand=scrollbar.set, bg="white", fg="black")
+    text = tk.Text(frame, width=90, height=12, font=(FONT, 13), yscrollcommand=scrollbar.set, bg="#f9fafb", fg=TEXT_MAIN, bd=0)
     text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
     scrollbar.config(command=text.yview)
     
+    csv_filename = get_csv_filename()
     if os.path.exists(csv_filename):
-        with open(csv_filename, "r") as f:
+        with open(csv_filename, "r", encoding="utf-8") as f:
             lines = f.readlines()
             if lines:
                 # Format header
@@ -315,7 +457,7 @@ def view_log():
         text.insert(tk.END, "No logs yet.")
     
     text.config(state=tk.DISABLED)  # Make read-only
-    tk.Button(root, text="Back", width=40, height=2, font=("Arial", 24), command=admin_menu).pack(pady=15)
+    tk.Button(card, text="Back", width=30, height=2, font=(FONT, 18), bg="#f3f4f6", fg=TEXT_MAIN, bd=0, command=admin_menu).pack(pady=15)
     
 def enter_desktop_mode():
     root.attributes("-fullscreen", False)
@@ -398,18 +540,34 @@ try:
 except Exception:
     print('Failed to start server subprocess')
 
-# If there's no graphical display (headless Pi), give a helpful error and exit instead of raising a Tk exception
+if not TK_AVAILABLE:
+    print("tkinter not available; running headless. Server should be accessible at http://<ip>:5000")
+    try:
+        if server_proc:
+            server_proc.wait()
+        else:
+            while True:
+                time.sleep(3600)
+    except KeyboardInterrupt:
+        stop_server()
+    sys.exit(0)
+
 try:
     root = tk.Tk()
-except tk.TclError:
-    print("No graphical display available. Attendance UI requires a desktop environment (X11).")
-    # Keep server running if it was started by this process; just exit the UI
+except Exception as e:
+    print("No graphical display available or tkinter error:", e)
+    try:
+        if server_proc:
+            server_proc.wait()
+        else:
+            while True:
+                time.sleep(3600)
+    except KeyboardInterrupt:
+        stop_server()
     sys.exit(0)
 
 root.title("Library Attendance System")
 root.attributes("-fullscreen", True)  # Fullscreen auto
-
-# Load background image
 bg_label = None
 bg_image_path = os.path.join(os.path.dirname(__file__), "Background.png")
 if os.path.exists(bg_image_path):
@@ -419,9 +577,9 @@ if os.path.exists(bg_image_path):
     bg_label = tk.Label(root, image=bg_photo)
     bg_label.image = bg_photo
     bg_label.place(x=0, y=0, relwidth=1, relheight=1)
-    bg_label.lower()  # Send to back
+    bg_label.lower()
 else:
-    root.configure(bg="#333333")  # Dark background for better readability
+    root.configure(bg=APP_BG)
 
 # Start app
 # If we successfully started the server subprocess, let the user know via the UI

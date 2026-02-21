@@ -1,13 +1,11 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="container mt-5">
-  <div class="card bg-light">
-    <div class="card-body">
-      <h3 class="card-title">Something went wrong</h3>
-      <p class="card-text">An unexpected error occurred while processing your request. The error has been logged and will be investigated.</p>
-      <a class="btn btn-primary" href="{{ url_for('manage_files') }}">Back to files</a>
-    </div>
+<div class="container pb-4">
+  <div class="panel">
+    <h3>Something went wrong</h3>
+    <p class="text-muted">An unexpected error occurred while processing your request.</p>
+    <a class="btn btn-primary" href="{{ url_for('manage_files') }}">Back to files</a>
   </div>
 </div>
 {% endblock %}

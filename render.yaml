@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: libro
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn Server:app --bind 0.0.0.0:$PORT
+    autoDeploy: true
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9
+      - key: LIBRO_USER
+        sync: false
+      - key: LIBRO_PASS
+        sync: false
