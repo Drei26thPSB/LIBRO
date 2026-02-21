@@ -25,6 +25,28 @@ try:
 except Exception as e:
     print(f"Error creating CSV directory: {e}")
 
+
+def cleanup_old_csv_files(retention_days=30):
+    """Delete CSV files older than retention_days using file modification time."""
+    cutoff = time.time() - (retention_days * 24 * 60 * 60)
+    deleted = 0
+    try:
+        for dirpath, _, filenames in os.walk(CSV_ROOT):
+            for name in filenames:
+                if not name.lower().endswith(".csv"):
+                    continue
+                full = os.path.join(dirpath, name)
+                try:
+                    if os.path.getmtime(full) <= cutoff:
+                        os.remove(full)
+                        deleted += 1
+                except Exception as e:
+                    print(f"Failed to evaluate/delete old CSV '{full}': {e}")
+        if deleted:
+            print(f"Deleted {deleted} CSV file(s) older than {retention_days} days.")
+    except Exception as e:
+        print(f"CSV cleanup failed: {e}")
+
 librarian_ids = ["S1898"]
 students = {
     "S0000": {"name": "Alfred Andrei Serquina", "grade": "12", "section": "MAPAGPALAYA"},
@@ -535,6 +557,7 @@ atexit.register(stop_server)
 
 # ---------------- MAIN ----------------
 # Start server even in headless mode (so web UI is available)
+cleanup_old_csv_files(retention_days=30)
 try:
     start_server()
 except Exception:

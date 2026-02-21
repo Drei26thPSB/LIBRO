@@ -1,6 +1,7 @@
 from flask import Flask, redirect, render_template, request, flash, Response, url_for, send_file
 import os
 import csv
+import time
 import logging
 from logging.handlers import RotatingFileHandler
 from werkzeug.utils import secure_filename
@@ -54,7 +55,26 @@ def ensure_csv_root_and_move_existing():
         app.logger.info('Moved CSV files on startup: %s', moved)
 
 
+def cleanup_old_csv_files(retention_days=30):
+    cutoff = time.time() - (retention_days * 24 * 60 * 60)
+    deleted = 0
+    for dirpath, _, filenames in os.walk(CSV_ROOT_ABS):
+        for name in filenames:
+            if not name.lower().endswith('.csv'):
+                continue
+            full = os.path.join(dirpath, name)
+            try:
+                if os.path.getmtime(full) <= cutoff:
+                    os.remove(full)
+                    deleted += 1
+            except Exception:
+                app.logger.exception('Failed deleting old CSV: %s', full)
+    if deleted:
+        app.logger.info('Deleted %d CSV file(s) older than %d days', deleted, retention_days)
+
+
 ensure_csv_root_and_move_existing()
+cleanup_old_csv_files(retention_days=30)
 
 
 def safe_join(root, *paths):

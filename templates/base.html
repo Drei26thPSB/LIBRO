@@ -43,13 +43,14 @@
       letter-spacing: -0.02em;
       text-decoration: none;
     }
-    .brand-dot {
-      display: inline-block;
-      width: 10px;
-      height: 10px;
+    .brand-logo {
+      width: 28px;
+      height: 28px;
       border-radius: 999px;
-      background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%);
-      margin-right: 8px;
+      object-fit: cover;
+      margin-right: 10px;
+      border: 1px solid rgba(0, 0, 0, 0.08);
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.12);
       vertical-align: middle;
     }
     .panel {
@@ -118,7 +119,7 @@
 <body>
 <nav class="topbar py-3 mb-4">
   <div class="container">
-    <a class="brand-link" href="{{ url_for('manage_files') }}"><span class="brand-dot"></span>PSB Library CSV Manager</a>
+    <a class="brand-link" href="{{ url_for('manage_files') }}"><img class="brand-logo" src="{{ url_for('static', filename='PSB_Logo.png') }}" alt="PSB Logo">PSB Library CSV Manager</a>
   </div>
 </nav>
 
