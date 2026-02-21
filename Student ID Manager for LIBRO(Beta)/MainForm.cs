@@ -33,6 +33,9 @@ public class MainForm : Form
     private readonly TextBox _txtGrade = new();
     private readonly TextBox _txtSection = new();
     private readonly Label _lblCount = new();
+    private readonly TreeView _folderTree = new();
+    private string _selectedGrade = "";
+    private string _selectedSection = "";
 
     private readonly DataTable _table = new("students");
     private readonly DataView _view;
@@ -53,9 +56,9 @@ public class MainForm : Form
     private void SetupWindow()
     {
         Text = "Student ID Manager for LIBRO (Beta)";
-        Width = 1200;
-        Height = 780;
-        MinimumSize = new Size(1000, 680);
+        Width = 1240;
+        Height = 800;
+        MinimumSize = new Size(1080, 700);
         StartPosition = FormStartPosition.CenterScreen;
         BackColor = CBg;
         Font = new Font("Segoe UI", 10);
@@ -89,7 +92,7 @@ public class MainForm : Form
 
         var subtitle = new Label
         {
-            Text = "Desktop app to add, remove, and organize students then sync Attendance.py",
+            Text = "Reads from Attendance.py and organizes students by Grade and Section folders",
             Font = new Font("Segoe UI", 10),
             ForeColor = ColorTranslator.FromHtml("#f6d9e4"),
             AutoSize = true,
@@ -98,7 +101,7 @@ public class MainForm : Form
         };
         header.Controls.Add(subtitle);
 
-        var body = new Panel { Dock = DockStyle.Fill, Padding = new Padding(12, 12, 12, 12), BackColor = CBg };
+        var body = new Panel { Dock = DockStyle.Fill, Padding = new Padding(12), BackColor = CBg };
         Controls.Add(body);
 
         var left = CardPanel();
@@ -112,14 +115,53 @@ public class MainForm : Form
         right.Padding = new Padding(12);
         body.Controls.Add(right);
 
+        var split = new SplitContainer
+        {
+            Dock = DockStyle.Fill,
+            Orientation = Orientation.Vertical,
+            SplitterDistance = 260,
+            BorderStyle = BorderStyle.None,
+            BackColor = CSurface
+        };
+        left.Controls.Add(split);
+
+        var folderPanel = new Panel { Dock = DockStyle.Fill, BackColor = CSurface };
+        split.Panel1.Controls.Add(folderPanel);
+        var foldersTitle = new Label
+        {
+            Text = "Folders (Grade / Section)",
+            AutoSize = true,
+            Font = new Font("Segoe UI", 10, FontStyle.Bold),
+            BackColor = CSurface,
+            ForeColor = CText,
+            Left = 0,
+            Top = 0
+        };
+        folderPanel.Controls.Add(foldersTitle);
+
+        _folderTree.Left = 0;
+        _folderTree.Top = 26;
+        _folderTree.Width = split.Panel1.Width - 8;
+        _folderTree.Height = split.Panel1.Height - 30;
+        _folderTree.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
+        _folderTree.BorderStyle = BorderStyle.FixedSingle;
+        _folderTree.BackColor = CSurfaceSoft;
+        _folderTree.ForeColor = CText;
+        _folderTree.AfterSelect += (_, _) => OnFolderSelected();
+        folderPanel.Controls.Add(_folderTree);
+
+        var listPanel = new Panel { Dock = DockStyle.Fill, BackColor = CSurface };
+        split.Panel2.Controls.Add(listPanel);
+
         var searchLabel = new Label { Text = "Search", AutoSize = true, Font = new Font("Segoe UI", 10, FontStyle.Bold), BackColor = CSurface, ForeColor = CText };
-        left.Controls.Add(searchLabel);
+        listPanel.Controls.Add(searchLabel);
+
         _txtSearch.Top = 26;
         _txtSearch.Left = 0;
         _txtSearch.Width = 420;
         StyleTextBox(_txtSearch);
         _txtSearch.TextChanged += (_, _) => ApplyFilter();
-        left.Controls.Add(_txtSearch);
+        listPanel.Controls.Add(_txtSearch);
 
         _lblCount.AutoSize = true;
         _lblCount.Font = new Font("Segoe UI", 9);
@@ -127,12 +169,12 @@ public class MainForm : Form
         _lblCount.BackColor = CSurface;
         _lblCount.Left = 440;
         _lblCount.Top = 30;
-        left.Controls.Add(_lblCount);
+        listPanel.Controls.Add(_lblCount);
 
         _grid.Top = 62;
         _grid.Left = 0;
-        _grid.Width = left.Width - 24;
-        _grid.Height = left.Height - 74;
+        _grid.Width = listPanel.Width - 8;
+        _grid.Height = listPanel.Height - 68;
         _grid.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
         _grid.AutoGenerateColumns = true;
         _grid.DataSource = _view;
@@ -155,7 +197,7 @@ public class MainForm : Form
         _grid.DefaultCellStyle.SelectionForeColor = CText;
         _grid.AlternatingRowsDefaultCellStyle.BackColor = ColorTranslator.FromHtml("#fbfcff");
         _grid.CellClick += (_, _) => FillFromSelected();
-        left.Controls.Add(_grid);
+        listPanel.Controls.Add(_grid);
 
         int y = 10;
         right.Controls.Add(FieldLabel("Student ID", y)); y += 22;
@@ -178,7 +220,7 @@ public class MainForm : Form
 
         var note = new Label
         {
-            Text = "Workflow: update records -> Save + Sync -> Commit + Push.",
+            Text = "Workflow: organize by folders -> Save + Sync -> Commit + Push.",
             AutoSize = false,
             Width = 320,
             Height = 44,
@@ -250,18 +292,10 @@ public class MainForm : Form
 
     private Panel GradientHeaderPanel()
     {
-        var panel = new Panel
-        {
-            BackColor = CPrimary
-        };
+        var panel = new Panel { BackColor = CPrimary };
         panel.Paint += (_, e) =>
         {
-            using var brush = new LinearGradientBrush(
-                panel.ClientRectangle,
-                CPrimary,
-                CAccent,
-                LinearGradientMode.ForwardDiagonal
-            );
+            using var brush = new LinearGradientBrush(panel.ClientRectangle, CPrimary, CAccent, LinearGradientMode.ForwardDiagonal);
             e.Graphics.FillRectangle(brush, panel.ClientRectangle);
             using var pen = new Pen(ColorTranslator.FromHtml("#651028"));
             e.Graphics.DrawLine(pen, 0, panel.Height - 1, panel.Width, panel.Height - 1);
@@ -272,12 +306,22 @@ public class MainForm : Form
     private void LoadRecords()
     {
         _table.Rows.Clear();
+        List<StudentRecord> records = [];
         if (File.Exists(_csvPath))
         {
-            foreach (var rec in ReadCsv(_csvPath))
-                _table.Rows.Add(rec.StudentId, rec.Name, rec.Grade, rec.Section);
+            records = ReadCsv(_csvPath).ToList();
         }
-        UpdateCount();
+        if (records.Count == 0 && File.Exists(_attendancePath))
+        {
+            records = ReadFromAttendancePy(_attendancePath).ToList();
+        }
+        foreach (var rec in records)
+        {
+            _table.Rows.Add(rec.StudentId, rec.Name, rec.Grade, rec.Section);
+        }
+        SortById(silent: true);
+        RebuildFolders();
+        ApplyFilter();
     }
 
     private static IEnumerable<StudentRecord> ReadCsv(string path)
@@ -293,6 +337,29 @@ public class MainForm : Form
                 cells.ElementAtOrDefault(1) ?? "",
                 cells.ElementAtOrDefault(2) ?? "",
                 cells.ElementAtOrDefault(3) ?? ""
+            );
+        }
+    }
+
+    private static IEnumerable<StudentRecord> ReadFromAttendancePy(string path)
+    {
+        string text = File.ReadAllText(path, Encoding.UTF8);
+        int start = text.IndexOf("students = {", StringComparison.Ordinal);
+        int end = text.IndexOf("\n\nCSV_HEADERS", start, StringComparison.Ordinal);
+        if (start < 0 || end < 0) yield break;
+        string block = text[start..end];
+
+        var linePattern = new Regex(
+            "\"(?<sid>[^\"]+)\"\\s*:\\s*\\{\"name\"\\s*:\\s*\"(?<name>[^\"]*)\"\\s*,\\s*\"grade\"\\s*:\\s*\"(?<grade>[^\"]*)\"\\s*,\\s*\"section\"\\s*:\\s*\"(?<section>[^\"]*)\"\\s*\\}",
+            RegexOptions.Compiled);
+
+        foreach (Match m in linePattern.Matches(block))
+        {
+            yield return new StudentRecord(
+                m.Groups["sid"].Value,
+                m.Groups["name"].Value,
+                m.Groups["grade"].Value,
+                m.Groups["section"].Value
             );
         }
     }
@@ -323,12 +390,89 @@ public class MainForm : Form
         return outList;
     }
 
+    private void RebuildFolders()
+    {
+        _folderTree.BeginUpdate();
+        _folderTree.Nodes.Clear();
+
+        var allNode = new TreeNode("All Students")
+        {
+            Tag = new FolderFilter("", "")
+        };
+        _folderTree.Nodes.Add(allNode);
+
+        var rows = _table.AsEnumerable().ToList();
+        var gradeGroups = rows
+            .GroupBy(r => (r["Grade"]?.ToString() ?? "").Trim())
+            .OrderBy(g => g.Key, StringComparer.OrdinalIgnoreCase);
+
+        foreach (var gradeGroup in gradeGroups)
+        {
+            string grade = string.IsNullOrWhiteSpace(gradeGroup.Key) ? "No Grade" : gradeGroup.Key;
+            var gradeNode = new TreeNode($"Grade {grade} ({gradeGroup.Count()})")
+            {
+                Tag = new FolderFilter(gradeGroup.Key, "")
+            };
+
+            var sectionGroups = gradeGroup
+                .GroupBy(r => (r["Section"]?.ToString() ?? "").Trim())
+                .OrderBy(g => g.Key, StringComparer.OrdinalIgnoreCase);
+
+            foreach (var sectionGroup in sectionGroups)
+            {
+                string section = string.IsNullOrWhiteSpace(sectionGroup.Key) ? "No Section" : sectionGroup.Key;
+                var sectionNode = new TreeNode($"{section} ({sectionGroup.Count()})")
+                {
+                    Tag = new FolderFilter(gradeGroup.Key, sectionGroup.Key)
+                };
+                gradeNode.Nodes.Add(sectionNode);
+            }
+
+            _folderTree.Nodes.Add(gradeNode);
+        }
+
+        allNode.Expand();
+        _folderTree.SelectedNode = allNode;
+        _folderTree.EndUpdate();
+    }
+
+    private void OnFolderSelected()
+    {
+        if (_folderTree.SelectedNode?.Tag is FolderFilter filter)
+        {
+            _selectedGrade = filter.Grade;
+            _selectedSection = filter.Section;
+        }
+        else
+        {
+            _selectedGrade = "";
+            _selectedSection = "";
+        }
+        ApplyFilter();
+    }
+
     private void ApplyFilter()
     {
+        var clauses = new List<string>();
+
+        if (!string.IsNullOrWhiteSpace(_selectedGrade))
+        {
+            string grade = _selectedGrade.Replace("'", "''");
+            clauses.Add($"[Grade] = '{grade}'");
+        }
+        if (!string.IsNullOrWhiteSpace(_selectedSection))
+        {
+            string section = _selectedSection.Replace("'", "''");
+            clauses.Add($"[Section] = '{section}'");
+        }
+
         string q = _txtSearch.Text.Trim().Replace("'", "''");
-        _view.RowFilter = string.IsNullOrWhiteSpace(q)
-            ? ""
-            : $"[Student ID] LIKE '%{q}%' OR [Name] LIKE '%{q}%' OR [Section] LIKE '%{q}%'";
+        if (!string.IsNullOrWhiteSpace(q))
+        {
+            clauses.Add($"([Student ID] LIKE '%{q}%' OR [Name] LIKE '%{q}%' OR [Section] LIKE '%{q}%')");
+        }
+
+        _view.RowFilter = string.Join(" AND ", clauses);
         UpdateCount();
     }
 
@@ -376,7 +520,8 @@ public class MainForm : Form
             existing["Grade"] = grade;
             existing["Section"] = section;
         }
-        SortById();
+        SortById(silent: true);
+        RebuildFolders();
         ApplyFilter();
     }
 
@@ -391,18 +536,32 @@ public class MainForm : Form
         if (MessageBox.Show($"Remove student ID {sid}?", "Confirm", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes)
             return;
         row.Delete();
+        SortById(silent: true);
+        RebuildFolders();
         ApplyFilter();
         ClearForm();
     }
 
-    private void SortById()
+    private void SortById(bool silent = false)
     {
-        var sorted = _table.AsEnumerable()
+        var sortedRows = _table.AsEnumerable()
             .OrderBy(r => (r["Student ID"]?.ToString() ?? "").ToLowerInvariant())
-            .CopyToDataTable();
-        _table.Clear();
-        foreach (DataRow r in sorted.Rows) _table.ImportRow(r);
-        ApplyFilter();
+            .ToList();
+        _table.Rows.Clear();
+        foreach (var row in sortedRows)
+        {
+            _table.Rows.Add(
+                row["Student ID"]?.ToString() ?? "",
+                row["Name"]?.ToString() ?? "",
+                row["Grade"]?.ToString() ?? "",
+                row["Section"]?.ToString() ?? ""
+            );
+        }
+        if (!silent)
+        {
+            RebuildFolders();
+            ApplyFilter();
+        }
     }
 
     private void SaveCsv()
@@ -522,4 +681,5 @@ public class MainForm : Form
     }
 
     private sealed record StudentRecord(string StudentId, string Name, string Grade, string Section);
+    private sealed record FolderFilter(string Grade, string Section);
 }
