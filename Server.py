@@ -1,4 +1,4 @@
-from flask import Flask, redirect, render_template, request, flash, Response, url_for
+from flask import Flask, redirect, render_template, request, flash, Response, url_for, send_file
 import os
 import csv
 import logging
@@ -91,7 +91,7 @@ def list_all_csv_files():
             files.append({
                 'name': name,
                 'rel': rel,
-                'folder': rel_dir if rel_dir else '(root)',
+                'folder': rel_dir if rel_dir else '',
                 'size': os.path.getsize(full),
             })
     return sorted(files, key=lambda x: x['rel'].lower())
@@ -216,6 +216,44 @@ def edit_csv(filename):
         return redirect(url_for('manage_files'))
 
     return render_template('edit_csv.html', filename=filename, content=content)
+
+
+@app.route('/view/<path:filename>')
+def view_csv(filename):
+    try:
+        full = csv_safe_join(filename)
+    except ValueError:
+        flash('Invalid filename', 'danger')
+        return redirect(url_for('manage_files'))
+
+    if not os.path.isfile(full) or not full.lower().endswith('.csv'):
+        flash('CSV not found', 'danger')
+        return redirect(url_for('manage_files'))
+
+    try:
+        with open(full, newline='', encoding='utf-8') as fh:
+            rows = list(csv.reader(fh))
+        headers = rows[0] if rows else []
+        data = rows[1:] if len(rows) > 1 else []
+        return render_template('view_csv.html', filename=filename, headers=headers, rows=data)
+    except Exception:
+        app.logger.exception('view_csv failed')
+        flash('Failed to view CSV', 'danger')
+        return redirect(url_for('manage_files'))
+
+
+@app.route('/download/<path:filename>')
+def download_csv(filename):
+    try:
+        full = csv_safe_join(filename)
+    except ValueError:
+        flash('Invalid filename', 'danger')
+        return redirect(url_for('manage_files'))
+
+    if not os.path.isfile(full) or not full.lower().endswith('.csv'):
+        flash('CSV not found', 'danger')
+        return redirect(url_for('manage_files'))
+    return send_file(full, as_attachment=True)
 
 
 @app.route('/save/<path:filename>', methods=['POST'])

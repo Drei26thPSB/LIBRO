@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>CSV Manager</title>
+  <title>PSB Library CSV Manager</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -16,18 +16,18 @@
       --line: #dce2f0;
       --text: #1b1f2a;
       --muted: #56607a;
-      --primary: #0038a8;
-      --primary-press: #002a7e;
-      --accent: #8a1538;
+      --primary: #8a1538;
+      --primary-press: #6e102d;
+      --accent: #a3204b;
       --gold: #f4c542;
       --radius: 20px;
       --radius-sm: 12px;
-      --shadow: 0 14px 30px rgba(0, 31, 105, 0.09);
+      --shadow: 0 14px 30px rgba(92, 15, 38, 0.12);
     }
     body {
       font-family: "Manrope", sans-serif;
-      background: radial-gradient(circle at 10% 0%, rgba(0, 56, 168, 0.14) 0%, transparent 44%),
-                  radial-gradient(circle at 90% 8%, rgba(138, 21, 56, 0.12) 0%, transparent 38%),
+      background: radial-gradient(circle at 10% 0%, rgba(138, 21, 56, 0.14) 0%, transparent 44%),
+                  radial-gradient(circle at 90% 8%, rgba(163, 32, 75, 0.10) 0%, transparent 38%),
                   var(--bg);
       color: var(--text);
       min-height: 100vh;
@@ -73,8 +73,8 @@
       border-color: var(--accent);
     }
     .btn-accent:hover, .btn-accent:focus {
-      background: #6e102d;
-      border-color: #6e102d;
+      background: #87143a;
+      border-color: #87143a;
       color: #fff;
     }
     .btn {
@@ -118,7 +118,7 @@
 <body>
 <nav class="topbar py-3 mb-4">
   <div class="container">
-    <a class="brand-link" href="{{ url_for('manage_files') }}"><span class="brand-dot"></span>LIBRO CSV Manager</a>
+    <a class="brand-link" href="{{ url_for('manage_files') }}"><span class="brand-dot"></span>PSB Library CSV Manager</a>
   </div>
 </nav>
 
