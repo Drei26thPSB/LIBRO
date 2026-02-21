@@ -251,3 +251,43 @@ FileNotFoundError: [WinError 3] The system cannot find the path specified: 'C:\\
 2026-01-31 18:33:51,408 INFO: Starting server [in c:\Users\Andrei\Downloads\LIBRO\Server.py:20]
 2026-01-31 18:36:30,543 INFO: Starting server [in c:\Users\Andrei\Downloads\LIBRO\Server.py:20]
 2026-01-31 18:36:45,919 INFO: Starting server [in c:\Users\Andrei\Downloads\LIBRO\Server.py:20]
+2026-02-01 20:11:27,287 INFO: Starting server [in C:\Users\Andrei\Downloads\LIBRO\Server.py:20]
+2026-02-01 20:15:21,676 INFO: Starting server [in c:\Users\Andrei\Downloads\LIBRO\Server.py:20]
+2026-02-02 13:59:00,109 INFO: Starting server [in c:\Users\Andrei\Downloads\LIBRO\Server.py:20]
+2026-02-02 14:06:13,620 INFO: Starting server [in c:\Users\Andrei\Downloads\LIBRO\Server.py:20]
+2026-02-02 14:06:30,196 INFO: Starting server [in c:\Users\Andrei\Downloads\LIBRO\Server.py:20]
+2026-02-02 14:06:43,023 INFO: Starting server [in c:\Users\Andrei\Downloads\LIBRO\Server.py:20]
+2026-02-02 14:08:18,841 INFO: Starting server [in c:\Users\Andrei\Downloads\LIBRO\Server.py:20]
+2026-02-02 14:08:45,559 INFO: Starting server [in c:\Users\Andrei\Downloads\LIBRO\Server.py:20]
+2026-02-02 14:24:36,188 INFO: Starting server [in c:\Users\Andrei\Downloads\LIBRO\Server.py:20]
+2026-02-02 14:26:40,606 INFO: Starting server [in c:\Users\Andrei\Downloads\LIBRO\Server.py:20]
+2026-02-16 07:10:17,068 INFO: Starting server [in c:\Users\Andrei\Downloads\LIBRO\Server.py:25]
+2026-02-16 07:10:33,511 INFO: Starting server [in c:\Users\Andrei\Downloads\LIBRO\Server.py:25]
+2026-02-16 07:34:58,051 INFO: Starting server [in C:\Users\Andrei\Downloads\LIBRO\Server.py:22]
+2026-02-16 07:37:49,733 INFO: Starting server [in C:\Users\Andrei\Downloads\LIBRO\Server.py:22]
+2026-02-16 07:39:21,108 ERROR: Unhandled exception: 404 Not Found: The requested URL was not found on the server. If you entered the URL manually please check your spelling and try again. [in C:\Users\Andrei\Downloads\LIBRO\Server.py:96]
+Traceback (most recent call last):
+  File "C:\Users\Andrei\Downloads\LIBRO\.venv\Lib\site-packages\flask\app.py", line 917, in full_dispatch_request
+    rv = self.dispatch_request()
+  File "C:\Users\Andrei\Downloads\LIBRO\.venv\Lib\site-packages\flask\app.py", line 891, in dispatch_request
+    self.raise_routing_exception(req)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^
+  File "C:\Users\Andrei\Downloads\LIBRO\.venv\Lib\site-packages\flask\app.py", line 500, in raise_routing_exception
+    raise request.routing_exception  # type: ignore[misc]
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Andrei\Downloads\LIBRO\.venv\Lib\site-packages\flask\ctx.py", line 362, in match_request
+    result = self.url_adapter.match(return_rule=True)  # type: ignore
+  File "C:\Users\Andrei\Downloads\LIBRO\.venv\Lib\site-packages\werkzeug\routing\map.py", line 629, in match
+    raise NotFound() from None
+werkzeug.exceptions.NotFound: 404 Not Found: The requested URL was not found on the server. If you entered the URL manually please check your spelling and try again.
+2026-02-16 07:39:26,466 INFO: Starting server [in c:\Users\Andrei\Downloads\LIBRO\Server.py:22]
+2026-02-16 09:35:09,674 INFO: Starting server [in c:\Users\Andrei\Downloads\LIBRO\Server.py:22]
+2026-02-16 09:35:53,880 INFO: Starting server [in c:\Users\Andrei\Downloads\LIBRO\Server.py:22]
+2026-02-16 09:36:48,206 INFO: Starting server [in c:\Users\Andrei\Downloads\LIBRO\Server.py:22]
+2026-02-16 10:46:42,520 INFO: Starting server [in c:\Users\Andrei\Downloads\LIBRO\Server.py:22]
+2026-02-16 10:46:54,323 INFO: Starting server [in c:\Users\Andrei\Downloads\LIBRO\Server.py:22]
+2026-02-16 10:49:27,840 INFO: Starting server [in c:\Users\Andrei\Downloads\LIBRO\Server.py:22]
+2026-02-16 10:52:15,479 INFO: Starting server [in c:\Users\Andrei\Downloads\LIBRO\Server.py:22]
+2026-02-21 13:59:57,359 INFO: Starting server [in c:\Users\Andrei\Downloads\LIBRO\Server.py:22]
+2026-02-21 14:00:04,569 INFO: Starting server [in c:\Users\Andrei\Downloads\LIBRO\Server.py:22]
+2026-02-21 14:11:32,935 INFO: Starting server [in c:\Users\Andrei\Downloads\LIBRO\Server.py:23]

@@ -3,10 +3,11 @@ Description=LIBRO Flask App
 After=network.target
 
 [Service]
+# Run as the specified user; %h expands to the user's home directory
 User=pi
-WorkingDirectory=/home/pi/LIBRO
-Environment="PATH=/home/pi/LIBRO/.venv/bin"
-ExecStart=/home/pi/LIBRO/.venv/bin/python /home/pi/LIBRO/Server.py
+WorkingDirectory=%h/LIBRO
+Environment="PATH=%h/LIBRO/.venv/bin"
+ExecStart=%h/LIBRO/.venv/bin/python %h/LIBRO/Server.py
 Restart=on-failure
 
 [Install]

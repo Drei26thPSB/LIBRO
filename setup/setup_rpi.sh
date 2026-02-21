@@ -37,9 +37,8 @@ echo " - (Optional) To run on startup, run this script with --install-service to
 if [ "${1-}" = "--install-service" ]; then
   echo "Installing systemd service..."
   SERVICE_PATH=/etc/systemd/system/libro.service
-  sudo cp deploy/libro.service.example $SERVICE_PATH
-  sudo sed -i "s#/home/pi/LIBRO#$(pwd)#g" $SERVICE_PATH
-  sudo sed -i "s#User=pi#User=$(whoami)#g" $SERVICE_PATH
+  # Copy example unit which uses %h specifier for the user's home directory
+  sudo cp deploy/libro.service.example "$SERVICE_PATH"
   sudo systemctl daemon-reload
   sudo systemctl enable libro
   sudo systemctl start libro
