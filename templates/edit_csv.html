@@ -7,7 +7,17 @@
       <h1 class="h4 mb-1">Edit CSV</h1>
       <p class="text-muted mb-0">{{ filename }}</p>
     </div>
-    <a class="btn btn-outline-secondary" href="{{ url_for('manage_files') }}">Back to Manager</a>
+    <div class="d-flex gap-2">
+      <form method="post" action="{{ url_for('clear_csv', filename=filename) }}" onsubmit="return confirm('Clear this CSV? This keeps only the header row.');">
+        <button class="btn btn-outline-warning" type="submit">Clear CSV</button>
+      </form>
+      <form method="post" action="{{ url_for('delete_item') }}" onsubmit="return confirm('Delete this CSV permanently?');">
+        <input type="hidden" name="path" value="{{ filename }}">
+        <input type="hidden" name="back_path" value="">
+        <button class="btn btn-outline-danger" type="submit">Delete CSV</button>
+      </form>
+      <a class="btn btn-outline-secondary" href="{{ url_for('manage_files') }}">Back to Manager</a>
+    </div>
   </div>
 
   {% with messages = get_flashed_messages(with_categories=true) %}

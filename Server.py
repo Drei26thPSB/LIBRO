@@ -319,6 +319,62 @@ def move():
     return redirect(url_for('manage_files', path=dest_folder))
 
 
+@app.route('/clear/<path:filename>', methods=['POST'])
+def clear_csv(filename):
+    try:
+        full = csv_safe_join(filename)
+    except ValueError:
+        flash('Invalid filename', 'danger')
+        return redirect(url_for('manage_files'))
+
+    if not os.path.isfile(full) or not full.lower().endswith('.csv'):
+        flash('CSV not found', 'danger')
+        return redirect(url_for('manage_files'))
+
+    try:
+        header_row = ''
+        with open(full, 'r', encoding='utf-8', newline='') as fh:
+            first_line = fh.readline()
+            if first_line:
+                header_row = first_line.rstrip('\r\n')
+
+        with open(full, 'w', encoding='utf-8', newline='') as fh:
+            if header_row:
+                fh.write(header_row + '\n')
+        flash('CSV cleared (header kept)', 'success')
+    except Exception:
+        app.logger.exception('clear_csv failed')
+        flash('Failed to clear CSV', 'danger')
+
+    return redirect(url_for('edit_csv', filename=filename))
+
+
+@app.route('/delete', methods=['POST'])
+def delete_item():
+    path = (request.form.get('path') or '').strip('/')
+    back_path = (request.form.get('back_path') or '').strip('/')
+    try:
+        target = csv_safe_join(path)
+    except ValueError:
+        flash('Invalid path', 'danger')
+        return redirect(url_for('manage_files', path=back_path))
+
+    try:
+        if os.path.isdir(target):
+            shutil.rmtree(target)
+            flash('Folder deleted', 'success')
+        elif os.path.isfile(target) and target.lower().endswith('.csv'):
+            os.remove(target)
+            flash('CSV deleted', 'success')
+        else:
+            flash('Item not found', 'danger')
+    except Exception:
+        app.logger.exception('delete failed')
+        flash('Delete failed', 'danger')
+
+    return redirect(url_for('manage_files', path=back_path))
+
+
 if __name__ == '__main__':
     ensure_csv_root_and_move_existing()
     port = int(os.getenv('PORT', os.getenv('LIBRO_PORT', '5000')))
