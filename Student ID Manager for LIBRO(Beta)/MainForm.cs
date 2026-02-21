@@ -1,5 +1,6 @@
 using System.Data;
 using System.Diagnostics;
+using System.Drawing.Drawing2D;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Windows.Forms;
@@ -8,6 +9,16 @@ namespace StudentIdManagerForLibro;
 
 public class MainForm : Form
 {
+    private static readonly Color CBg = ColorTranslator.FromHtml("#f6f7fb");
+    private static readonly Color CSurface = ColorTranslator.FromHtml("#ffffff");
+    private static readonly Color CSurfaceSoft = ColorTranslator.FromHtml("#f8f9fd");
+    private static readonly Color CLine = ColorTranslator.FromHtml("#dce2f0");
+    private static readonly Color CText = ColorTranslator.FromHtml("#1b1f2a");
+    private static readonly Color CMuted = ColorTranslator.FromHtml("#56607a");
+    private static readonly Color CPrimary = ColorTranslator.FromHtml("#8a1538");
+    private static readonly Color CPrimaryHover = ColorTranslator.FromHtml("#73112f");
+    private static readonly Color CAccent = ColorTranslator.FromHtml("#a3204b");
+
     private const string CsvFileName = "students.csv";
     private const string AttendanceFileName = "Attendance.py";
 
@@ -46,7 +57,8 @@ public class MainForm : Form
         Height = 780;
         MinimumSize = new Size(1000, 680);
         StartPosition = FormStartPosition.CenterScreen;
-        BackColor = ColorTranslator.FromHtml("#f5f6fb");
+        BackColor = CBg;
+        Font = new Font("Segoe UI", 10);
     }
 
     private void SetupData()
@@ -59,19 +71,19 @@ public class MainForm : Form
 
     private void BuildLayout()
     {
-        var header = CardPanel();
+        var header = GradientHeaderPanel();
         header.Dock = DockStyle.Top;
-        header.Height = 90;
+        header.Height = 102;
         Controls.Add(header);
 
         var title = new Label
         {
             Text = "Student ID Manager for LIBRO (Beta)",
             Font = new Font("Segoe UI", 17, FontStyle.Bold),
-            ForeColor = ColorTranslator.FromHtml("#111827"),
+            ForeColor = Color.White,
             AutoSize = true,
             Location = new Point(16, 14),
-            BackColor = Color.White
+            BackColor = Color.Transparent
         };
         header.Controls.Add(title);
 
@@ -79,14 +91,14 @@ public class MainForm : Form
         {
             Text = "Desktop app to add, remove, and organize students then sync Attendance.py",
             Font = new Font("Segoe UI", 10),
-            ForeColor = ColorTranslator.FromHtml("#6b7280"),
+            ForeColor = ColorTranslator.FromHtml("#f6d9e4"),
             AutoSize = true,
             Location = new Point(18, 50),
-            BackColor = Color.White
+            BackColor = Color.Transparent
         };
         header.Controls.Add(subtitle);
 
-        var body = new Panel { Dock = DockStyle.Fill, Padding = new Padding(12, 12, 12, 12), BackColor = BackColor };
+        var body = new Panel { Dock = DockStyle.Fill, Padding = new Padding(12, 12, 12, 12), BackColor = CBg };
         Controls.Add(body);
 
         var left = CardPanel();
@@ -100,18 +112,19 @@ public class MainForm : Form
         right.Padding = new Padding(12);
         body.Controls.Add(right);
 
-        var searchLabel = new Label { Text = "Search", AutoSize = true, Font = new Font("Segoe UI", 10, FontStyle.Bold), BackColor = Color.White };
+        var searchLabel = new Label { Text = "Search", AutoSize = true, Font = new Font("Segoe UI", 10, FontStyle.Bold), BackColor = CSurface, ForeColor = CText };
         left.Controls.Add(searchLabel);
         _txtSearch.Top = 26;
         _txtSearch.Left = 0;
         _txtSearch.Width = 420;
+        StyleTextBox(_txtSearch);
         _txtSearch.TextChanged += (_, _) => ApplyFilter();
         left.Controls.Add(_txtSearch);
 
         _lblCount.AutoSize = true;
         _lblCount.Font = new Font("Segoe UI", 9);
-        _lblCount.ForeColor = ColorTranslator.FromHtml("#6b7280");
-        _lblCount.BackColor = Color.White;
+        _lblCount.ForeColor = CMuted;
+        _lblCount.BackColor = CSurface;
         _lblCount.Left = 440;
         _lblCount.Top = 30;
         left.Controls.Add(_lblCount);
@@ -128,9 +141,19 @@ public class MainForm : Form
         _grid.ReadOnly = true;
         _grid.AllowUserToAddRows = false;
         _grid.AllowUserToDeleteRows = false;
-        _grid.BackgroundColor = Color.White;
-        _grid.BorderStyle = BorderStyle.FixedSingle;
+        _grid.BackgroundColor = CSurface;
+        _grid.BorderStyle = BorderStyle.None;
         _grid.RowHeadersVisible = false;
+        _grid.GridColor = CLine;
+        _grid.ColumnHeadersDefaultCellStyle.BackColor = CSurfaceSoft;
+        _grid.ColumnHeadersDefaultCellStyle.ForeColor = CText;
+        _grid.ColumnHeadersDefaultCellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
+        _grid.EnableHeadersVisualStyles = false;
+        _grid.DefaultCellStyle.BackColor = CSurface;
+        _grid.DefaultCellStyle.ForeColor = CText;
+        _grid.DefaultCellStyle.SelectionBackColor = ColorTranslator.FromHtml("#f3d5e1");
+        _grid.DefaultCellStyle.SelectionForeColor = CText;
+        _grid.AlternatingRowsDefaultCellStyle.BackColor = ColorTranslator.FromHtml("#fbfcff");
         _grid.CellClick += (_, _) => FillFromSelected();
         left.Controls.Add(_grid);
 
@@ -161,8 +184,8 @@ public class MainForm : Form
             Height = 44,
             Left = 12,
             Top = y,
-            BackColor = Color.White,
-            ForeColor = ColorTranslator.FromHtml("#6b7280"),
+            BackColor = CSurface,
+            ForeColor = CMuted,
             Font = new Font("Segoe UI", 9)
         };
         right.Controls.Add(note);
@@ -170,7 +193,7 @@ public class MainForm : Form
 
     private Panel CardPanel() => new()
     {
-        BackColor = Color.White,
+        BackColor = CSurface,
         Padding = new Padding(10),
         Margin = new Padding(0)
     };
@@ -183,7 +206,8 @@ public class MainForm : Form
         Width = 120,
         AutoSize = false,
         Font = new Font("Segoe UI", 10, FontStyle.Bold),
-        BackColor = Color.White
+        BackColor = CSurface,
+        ForeColor = CText
     };
 
     private Control FieldBox(TextBox box, int top)
@@ -191,6 +215,7 @@ public class MainForm : Form
         box.Left = 12;
         box.Top = top;
         box.Width = 320;
+        StyleTextBox(box);
         return box;
     }
 
@@ -205,12 +230,43 @@ public class MainForm : Form
             Height = 32,
             FlatStyle = FlatStyle.Flat,
             Font = new Font("Segoe UI", 9, FontStyle.Bold),
-            BackColor = primary ? ColorTranslator.FromHtml("#8a1538") : ColorTranslator.FromHtml("#eef1f7"),
-            ForeColor = primary ? Color.White : ColorTranslator.FromHtml("#111827")
+            BackColor = primary ? CPrimary : CSurfaceSoft,
+            ForeColor = primary ? Color.White : CText
         };
-        b.FlatAppearance.BorderColor = ColorTranslator.FromHtml("#dce2ee");
+        b.FlatAppearance.BorderColor = CLine;
+        b.FlatAppearance.MouseOverBackColor = primary ? CPrimaryHover : ColorTranslator.FromHtml("#eef2fb");
+        b.FlatAppearance.MouseDownBackColor = primary ? CPrimaryHover : ColorTranslator.FromHtml("#e8edf8");
         b.Click += onClick;
         return b;
+    }
+
+    private void StyleTextBox(TextBox box)
+    {
+        box.BorderStyle = BorderStyle.FixedSingle;
+        box.BackColor = CSurfaceSoft;
+        box.ForeColor = CText;
+        box.Font = new Font("Segoe UI", 10);
+    }
+
+    private Panel GradientHeaderPanel()
+    {
+        var panel = new Panel
+        {
+            BackColor = CPrimary
+        };
+        panel.Paint += (_, e) =>
+        {
+            using var brush = new LinearGradientBrush(
+                panel.ClientRectangle,
+                CPrimary,
+                CAccent,
+                LinearGradientMode.ForwardDiagonal
+            );
+            e.Graphics.FillRectangle(brush, panel.ClientRectangle);
+            using var pen = new Pen(ColorTranslator.FromHtml("#651028"));
+            e.Graphics.DrawLine(pen, 0, panel.Height - 1, panel.Width, panel.Height - 1);
+        };
+        return panel;
     }
 
     private void LoadRecords()
