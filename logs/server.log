@@ -291,3 +291,4 @@ werkzeug.exceptions.NotFound: 404 Not Found: The requested URL was not found on 
 2026-02-21 13:59:57,359 INFO: Starting server [in c:\Users\Andrei\Downloads\LIBRO\Server.py:22]
 2026-02-21 14:00:04,569 INFO: Starting server [in c:\Users\Andrei\Downloads\LIBRO\Server.py:22]
 2026-02-21 14:11:32,935 INFO: Starting server [in c:\Users\Andrei\Downloads\LIBRO\Server.py:23]
+2026-02-21 15:15:00,338 INFO: Starting server [in c:\Users\Andrei\Downloads\LIBRO\Server.py:24]
