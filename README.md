@@ -1,4 +1,4 @@
-<img width="512" height="512" alt="image" src="https://github.com/user-attachments/assets/52645172-82f2-4a04-be0e-78e5ad19ba24" />📚 LIBRO – Library Attendance System
+📚 LIBRO – Library Attendance System
 <img width="512" height="512" alt="image" src="https://github.com/user-attachments/assets/08243a26-fcb3-4818-8e6c-78fae05062d2" />
 
 📖 Introduction
