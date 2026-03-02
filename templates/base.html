@@ -118,8 +118,13 @@
 </head>
 <body>
 <nav class="topbar py-3 mb-4">
-  <div class="container">
+  <div class="container d-flex justify-content-between align-items-center">
     <a class="brand-link" href="{{ url_for('manage_files') }}"><img class="brand-logo" src="{{ url_for('static', filename='PSB_Logo.png') }}" alt="PSB Logo">PSB Library CSV Manager</a>
+    {% if session.get('authenticated') %}
+    <form method="post" action="{{ url_for('logout') }}">
+      <button type="submit" class="btn btn-outline-secondary btn-sm">Logout</button>
+    </form>
+    {% endif %}
   </div>
 </nav>
 

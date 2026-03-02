@@ -1,4 +1,4 @@
-from flask import Flask, redirect, render_template, request, flash, Response, url_for, send_file
+from flask import Flask, redirect, render_template, request, flash, url_for, send_file, session
 import os
 import csv
 import time
@@ -6,13 +6,19 @@ import logging
 from logging.handlers import RotatingFileHandler
 from werkzeug.utils import secure_filename
 import shutil
+import datetime
+import hmac
 
 app = Flask(__name__)
 app.secret_key = 'change-me-to-a-secure-key'
+app.config['PERMANENT_SESSION_LIFETIME'] = datetime.timedelta(
+    minutes=int(os.getenv('LIBRO_SESSION_TIMEOUT_MINUTES', '20'))
+)
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 CSV_ROOT = 'csv_files'
 CSV_ROOT_ABS = os.path.join(ROOT_DIR, CSV_ROOT)
+BACKUP_ROOT = os.path.join(ROOT_DIR, 'backups', 'daily')
 
 logs_dir = os.path.join(ROOT_DIR, 'logs')
 os.makedirs(logs_dir, exist_ok=True)
@@ -23,23 +29,63 @@ app.logger.addHandler(file_handler)
 app.logger.setLevel(logging.INFO)
 app.logger.info('Starting server')
 
-AUTH_USER = os.getenv('LIBRO_USER')
-AUTH_PASS = os.getenv('LIBRO_PASS')
-if AUTH_USER and AUTH_PASS:
-    def _check_auth(username, password):
-        return username == AUTH_USER and password == AUTH_PASS
+def _load_allowed_users():
+    allowed = {}
+    user = (os.getenv('LIBRO_USER') or '').strip()
+    password = os.getenv('LIBRO_PASS') or ''
+    if user and password:
+        allowed[user] = password
 
-    @app.before_request
-    def require_basic_auth():
-        if request.endpoint == 'static':
-            return None
-        auth = request.authorization
-        if not auth or not _check_auth(auth.username, auth.password):
-            return Response('Authentication required', 401, {'WWW-Authenticate': 'Basic realm="Login Required"'})
+    raw = (os.getenv('LIBRO_ALLOWED_USERS') or '').strip()
+    if raw:
+        pairs = [p.strip() for p in raw.split(',') if p.strip()]
+        for pair in pairs:
+            if ':' not in pair:
+                continue
+            u, p = pair.split(':', 1)
+            u = u.strip()
+            p = p.strip()
+            if u and p:
+                allowed[u] = p
+
+    if not allowed:
+        allowed['librarian'] = 'libro'
+        app.logger.warning('Using fallback login user. Configure LIBRO_USER/LIBRO_PASS or LIBRO_ALLOWED_USERS.')
+    return allowed
+
+
+ALLOWED_USERS = _load_allowed_users()
+
+
+def _check_auth(username, password):
+    expected = ALLOWED_USERS.get(username or '')
+    if expected is None:
+        return False
+    return hmac.compare_digest(expected, password or '')
+
+
+def _is_authenticated():
+    if not session.get('authenticated'):
+        return False
+    username = session.get('username')
+    if username not in ALLOWED_USERS:
+        return False
+    return True
+
+
+@app.before_request
+def require_session_login():
+    if request.endpoint in {'static', 'login'}:
+        return None
+    if not _is_authenticated():
+        return redirect(url_for('login', next=request.path))
+    session.permanent = True
+    return None
 
 
 def ensure_csv_root_and_move_existing():
     os.makedirs(CSV_ROOT_ABS, exist_ok=True)
+    os.makedirs(BACKUP_ROOT, exist_ok=True)
     moved = []
     for name in os.listdir(ROOT_DIR):
         fullpath = os.path.join(ROOT_DIR, name)
@@ -73,8 +119,33 @@ def cleanup_old_csv_files(retention_days=30):
         app.logger.info('Deleted %d CSV file(s) older than %d days', deleted, retention_days)
 
 
+def daily_backup_csv_files():
+    day = time.strftime('%Y-%m-%d')
+    target = os.path.join(BACKUP_ROOT, day)
+    if os.path.isdir(target):
+        return
+    copied = 0
+    try:
+        os.makedirs(target, exist_ok=True)
+        for dirpath, _, filenames in os.walk(CSV_ROOT_ABS):
+            rel = os.path.relpath(dirpath, CSV_ROOT_ABS)
+            rel = '' if rel == '.' else rel
+            for name in filenames:
+                if not name.lower().endswith('.csv'):
+                    continue
+                src = os.path.join(dirpath, name)
+                dst_dir = os.path.join(target, rel)
+                os.makedirs(dst_dir, exist_ok=True)
+                shutil.copy2(src, os.path.join(dst_dir, name))
+                copied += 1
+        app.logger.info('Daily backup created: %s (%d file(s))', target, copied)
+    except Exception:
+        app.logger.exception('Daily backup failed')
+
+
 ensure_csv_root_and_move_existing()
 cleanup_old_csv_files(retention_days=30)
+daily_backup_csv_files()
 
 
 def safe_join(root, *paths):
@@ -115,6 +186,28 @@ def list_all_csv_files():
                 'size': os.path.getsize(full),
             })
     return sorted(files, key=lambda x: x['rel'].lower())
+
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    next_url = request.args.get('next') or request.form.get('next') or url_for('manage_files')
+    if request.method == 'POST':
+        username = (request.form.get('username') or '').strip()
+        password = request.form.get('password') or ''
+        if _check_auth(username, password):
+            session.clear()
+            session['authenticated'] = True
+            session['username'] = username
+            session.permanent = True
+            return redirect(next_url)
+        flash('Invalid username or password', 'danger')
+    return render_template('login.html', next_url=next_url)
+
+
+@app.route('/logout', methods=['POST'])
+def logout():
+    session.clear()
+    return redirect(url_for('login'))
 
 
 @app.errorhandler(Exception)
@@ -172,6 +265,7 @@ def mkdir():
         flash('Folder name required', 'danger')
         return redirect(url_for('manage_files', path=parent))
     try:
+        daily_backup_csv_files()
         target = csv_safe_join(parent)
         os.makedirs(os.path.join(target, name), exist_ok=True)
         flash('Folder created', 'success')
@@ -195,6 +289,7 @@ def create_csv():
         name = f'{name}.csv'
 
     try:
+        daily_backup_csv_files()
         dest_dir = csv_safe_join(parent)
         os.makedirs(dest_dir, exist_ok=True)
         full = os.path.join(dest_dir, name)
@@ -290,6 +385,7 @@ def save_csv(filename):
         return redirect(url_for('manage_files'))
 
     try:
+        daily_backup_csv_files()
         with open(full, 'w', encoding='utf-8', newline='') as fh:
             fh.write(content.replace('\r\n', '\n'))
         flash('CSV saved', 'success')
@@ -305,6 +401,7 @@ def move():
     path = request.form.get('path') or ''
     dest_folder = (request.form.get('dest_folder') or '').strip('/')
     try:
+        daily_backup_csv_files()
         src = csv_safe_join(path)
         dest_dir = csv_safe_join(dest_folder)
         if not os.path.isfile(src) or not src.lower().endswith('.csv'):
@@ -332,6 +429,7 @@ def clear_csv(filename):
         return redirect(url_for('manage_files'))
 
     try:
+        daily_backup_csv_files()
         header_row = ''
         with open(full, 'r', encoding='utf-8', newline='') as fh:
             first_line = fh.readline()
@@ -360,6 +458,7 @@ def delete_item():
         return redirect(url_for('manage_files', path=back_path))
 
     try:
+        daily_backup_csv_files()
         if os.path.isdir(target):
             shutil.rmtree(target)
             flash('Folder deleted', 'success')

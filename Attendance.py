@@ -14,20 +14,40 @@ import sys
 import subprocess
 import socket
 import atexit
-from PIL import Image, ImageTk
+import re
+import shutil
+import logging
+from logging.handlers import RotatingFileHandler
+from PIL import Image, ImageTk, ImageDraw
 
 # ---------------- GLOBALS ----------------
-# Store logs under project-local `csv_files` so code is portable across platforms (Windows/Linux/RPi)
 CSV_ROOT = os.path.join(os.path.dirname(__file__), 'csv_files')
-# Ensure directory exists
+STUDENT_ROSTER_ROOT = os.path.join(os.path.dirname(__file__), 'studentid_data')
+BACKUP_ROOT = os.path.join(os.path.dirname(__file__), "backups", "daily")
+LOG_ROOT = os.path.join(os.path.dirname(__file__), "logs")
+STUDENT_ID_PATTERN = re.compile(os.getenv("LIBRO_STUDENT_ID_REGEX", r"^[A-Za-z0-9-]{4,20}$"))
 try:
     os.makedirs(CSV_ROOT, exist_ok=True)
+    os.makedirs(STUDENT_ROSTER_ROOT, exist_ok=True)
+    os.makedirs(BACKUP_ROOT, exist_ok=True)
+    os.makedirs(LOG_ROOT, exist_ok=True)
 except Exception as e:
     print(f"Error creating CSV directory: {e}")
 
+logger = logging.getLogger("attendance")
+logger.setLevel(logging.INFO)
+if not logger.handlers:
+    attendance_log = RotatingFileHandler(
+        os.path.join(LOG_ROOT, "attendance.log"),
+        maxBytes=2 * 1024 * 1024,
+        backupCount=3,
+        encoding="utf-8",
+    )
+    attendance_log.setFormatter(logging.Formatter("%(asctime)s %(levelname)s: %(message)s"))
+    logger.addHandler(attendance_log)
+
 
 def cleanup_old_csv_files(retention_days=30):
-    """Delete CSV files older than retention_days using file modification time."""
     cutoff = time.time() - (retention_days * 24 * 60 * 60)
     deleted = 0
     try:
@@ -41,30 +61,168 @@ def cleanup_old_csv_files(retention_days=30):
                         os.remove(full)
                         deleted += 1
                 except Exception as e:
-                    print(f"Failed to evaluate/delete old CSV '{full}': {e}")
+                    logger.exception("Failed to evaluate/delete old CSV '%s': %s", full, e)
         if deleted:
-            print(f"Deleted {deleted} CSV file(s) older than {retention_days} days.")
+            logger.info("Deleted %d CSV file(s) older than %d days.", deleted, retention_days)
     except Exception as e:
-        print(f"CSV cleanup failed: {e}")
+        logger.exception("CSV cleanup failed: %s", e)
+
+
+def daily_backup_csv_files():
+    day = get_attendance_date()
+    target_dir = os.path.join(BACKUP_ROOT, day)
+    if os.path.isdir(target_dir):
+        return
+    copied = 0
+    try:
+        os.makedirs(target_dir, exist_ok=True)
+        for dirpath, _, filenames in os.walk(CSV_ROOT):
+            rel_dir = os.path.relpath(dirpath, CSV_ROOT)
+            rel_dir = "" if rel_dir == "." else rel_dir
+            for name in filenames:
+                if not name.lower().endswith(".csv"):
+                    continue
+                src = os.path.join(dirpath, name)
+                dst_dir = os.path.join(target_dir, rel_dir)
+                os.makedirs(dst_dir, exist_ok=True)
+                shutil.copy2(src, os.path.join(dst_dir, name))
+                copied += 1
+        logger.info("Daily backup created: %s (%d file(s))", target_dir, copied)
+    except Exception:
+        logger.exception("Daily backup failed for %s", day)
+
+
+def is_valid_student_id(student_id):
+    return bool(STUDENT_ID_PATTERN.fullmatch(student_id or ""))
 
 librarian_ids = ["S1898"]
-students = {
-    "S0000": {"name": "Alfred Andrei Serquina", "grade": "12", "section": "MAPAGPALAYA"},
-    "S2103": {"name": "Jaime Enrico Dilao", "grade": "12", "section": "MAPAGPALAYA"},
-    "S24-0100": {"name": "Nataniela Vera Garcia", "grade": "12", "section": "MAPAGPALAYA"},
-    "S14-0235": {"name": "Tish Darryne Yu", "grade": "12", "section": "MAPAGPALAYA"},
-    "S22-0106": {"name": "Criselda Mendoza", "grade": "12", "section": "MAPAGPALAYA"},
-    "S1910": {"name": "Rholand Anthony Puig", "grade": "12", "section": "MAPAGPALAYA"},
-    "S24-0152": {"name": "Renee Magahiz", "grade": "12", "section": "MAPAGPALAYA"},
-    "S18-0253": {"name": "Daniel Coralde", "grade": "12", "section": "MAPITAGAN"},
-    "S1896": {"name": "Sebastian Andrei Abanilla", "grade": "12", "section": "MAPAGPALAYA"},
-    "S24-0150": {"name": "Joshmar Sy", "grade": "12", "section": "MAPAGPALAYA"},
-    "S19-0212": {"name": "Dwayne Bodota", "grade": "12", "section": "MAPAGNILAY"},
-    "S24-0151": {"name": "Jelliuah Sureta", "grade": "12", "section": "MAPAGPALAYA"},
-    "S1875": {"name": "Reign Yra Fernandez", "grade": "12", "section": "MAPAGPALAYA"},
-    "S16-0199": {"name": "Kolin Dwayne Lacson", "grade": "12", "section": "MAPAGNILAY"},
-    "S22-0165": {"name": "Isabelle Maristela", "grade": "12", "section": "MAPAGPALAYA"},
-}
+students = {}
+students_signature = None
+
+
+def normalize_spaces(text):
+    return re.sub(r"\s+", " ", (text or "").strip())
+
+
+def normalize_student_id(text):
+    return normalize_spaces(text).upper()
+
+
+def normalize_name(text):
+    return normalize_spaces(text).casefold()
+
+
+def get_student_field(row, candidate_keys):
+    normalized_row = {k.strip().casefold(): (v or "").strip() for k, v in row.items() if k}
+    for key in candidate_keys:
+        val = normalized_row.get(key.casefold(), "")
+        if val:
+            return val
+    return ""
+
+
+def parse_grade_section_from_filename(csv_path):
+    base = os.path.splitext(os.path.basename(csv_path))[0]
+    if "_" in base:
+        grade, section = base.split("_", 1)
+        return normalize_spaces(grade), normalize_spaces(section)
+    return "", normalize_spaces(base)
+
+
+def compute_students_signature():
+    parts = []
+    try:
+        for dirpath, _, filenames in os.walk(STUDENT_ROSTER_ROOT):
+            for name in filenames:
+                if not name.lower().endswith(".csv"):
+                    continue
+                full = os.path.join(dirpath, name)
+                try:
+                    stat = os.stat(full)
+                    rel = os.path.relpath(full, STUDENT_ROSTER_ROOT).replace("\\", "/")
+                    parts.append((rel, int(stat.st_mtime), stat.st_size))
+                except Exception:
+                    continue
+    except Exception:
+        return None
+    return tuple(sorted(parts))
+
+
+def load_students_from_rosters():
+    loaded = {}
+    for dirpath, _, filenames in os.walk(STUDENT_ROSTER_ROOT):
+        for name in filenames:
+            if not name.lower().endswith(".csv"):
+                continue
+            full = os.path.join(dirpath, name)
+            filename_grade, filename_section = parse_grade_section_from_filename(full)
+            try:
+                with open(full, "r", newline="", encoding="utf-8-sig") as f:
+                    reader = csv.DictReader(f)
+                    if not reader.fieldnames:
+                        continue
+                    for row in reader:
+                        sid = normalize_student_id(
+                            get_student_field(
+                                row,
+                                ["Student ID", "Student Id", "StudentID", "ID", "Student Number", "Student ID Number"],
+                            )
+                        )
+                        name_val = normalize_spaces(get_student_field(row, ["Name", "Student Name", "Full Name"]))
+                        if not sid or not name_val:
+                            continue
+                        grade = normalize_spaces(get_student_field(row, ["Grade", "Grade Level", "GradeLevel"])) or filename_grade
+                        section = normalize_spaces(get_student_field(row, ["Section"])) or filename_section
+                        class_number = normalize_spaces(get_student_field(row, ["Class Number", "Class", "Class No", "No"]))
+                        loaded[sid] = {
+                            "name": name_val,
+                            "grade": grade,
+                            "section": section,
+                            "class_number": class_number,
+                            "source": os.path.relpath(full, STUDENT_ROSTER_ROOT).replace("\\", "/"),
+                        }
+            except Exception as e:
+                print(f"Failed loading roster '{full}': {e}")
+    return loaded
+
+
+def ensure_students_loaded(force=False):
+    global students, students_signature
+    new_signature = compute_students_signature()
+    if not force and new_signature == students_signature:
+        return
+    students = load_students_from_rosters()
+    students_signature = new_signature
+    if students:
+        logger.info("Loaded %d student record(s) from %s.", len(students), STUDENT_ROSTER_ROOT)
+    else:
+        logger.warning("No valid student roster records found in %s.", STUDENT_ROSTER_ROOT)
+
+
+def parse_scan_input(raw_text):
+    raw = normalize_spaces(raw_text)
+    if not raw:
+        return "", ""
+    for sep in ("|", ",", ";", "\t"):
+        if sep in raw:
+            left, right = [part.strip() for part in raw.split(sep, 1)]
+            return normalize_student_id(left), normalize_name(right)
+    return normalize_student_id(raw), ""
+
+
+def find_student_from_scan(raw_text):
+    ensure_students_loaded()
+    scan_id, scan_name = parse_scan_input(raw_text)
+    if not scan_id:
+        return None, None, "empty"
+    if not is_valid_student_id(scan_id):
+        return None, scan_id, "invalid_id_format"
+    student = students.get(scan_id)
+    if not student:
+        return None, scan_id, "id_not_found"
+    if scan_name and normalize_name(student["name"]) != scan_name:
+        return None, scan_id, "name_mismatch"
+    return student, scan_id, ""
 
 CSV_HEADERS = ["Student ID", "Name", "Section", "Purpose", "Time In", "Time Out", "Status"]
 
@@ -72,19 +230,106 @@ current_student = None
 current_student_id = None
 last_scan_time = {}
 purpose_options = ["Study", "Borrow Book", "Research", "Use Ipad/PC", "Others"]
-SCAN_TIMEOUT = 3  # anti-double-scan cooldown in seconds
+SCAN_TIMEOUT = 7
 
 # ---------------- UI STYLE ----------------
 APP_BG = "#f2f4f7"
-CARD_BG = "#ffffff"
-BORDER = "#e5e7eb"
-TEXT_MAIN = "#111827"
-TEXT_MUTED = "#6b7280"
-PRIMARY = "#0a84ff"
-PRIMARY_ACTIVE = "#0866c5"
+CARD_BG = "#f2f2f2"
+BORDER = "#dddddd"
+TEXT_MAIN = "#d81f3f"
+TEXT_MUTED = "#d81f3f"
+PRIMARY = "#d81f3f"
+PRIMARY_ACTIVE = "#ba1430"
 WARN = "#9a3412"
 DANGER = "#b42318"
 FONT = "Segoe UI"
+INPUT_BG = "#cdcdcf"
+
+bg_label = None
+bg_render_image = None
+psb_logo_label = None
+top_title_label = None
+top_title_bg = APP_BG
+
+
+def format_clock_text():
+    return datetime.datetime.now().strftime("%I:%M:%S %p").lstrip("0")
+
+
+def bind_live_clock(clock_label):
+    def _tick():
+        if not clock_label.winfo_exists():
+            return
+        clock_label.config(text=format_clock_text())
+        clock_label.after(1000, _tick)
+
+    _tick()
+
+
+def make_rounded_card_image(width, height, radius=42):
+    if bg_render_image is not None:
+        base = bg_render_image.copy().convert("RGBA")
+    else:
+        base = Image.new("RGBA", (width, height), (242, 242, 242, 255))
+    overlay = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(overlay)
+    draw.rounded_rectangle((0, 0, width - 1, height - 1), radius=radius, fill=(242, 242, 242, 245))
+    return Image.alpha_composite(base, overlay)
+
+
+def make_scan_entry(parent, width_chars=24):
+    entry_shell = tk.Frame(parent, bg=INPUT_BG, bd=0, highlightthickness=0)
+    entry_shell.pack(pady=18, ipady=8, ipadx=38)
+    entry = tk.Entry(
+        entry_shell,
+        font=(FONT, 28, "bold"),
+        width=width_chars,
+        bd=0,
+        bg=INPUT_BG,
+        fg=TEXT_MAIN,
+        justify=tk.CENTER,
+        insertbackground=TEXT_MAIN,
+        highlightthickness=0,
+    )
+    entry.pack(ipady=4)
+    return entry
+
+
+def place_psb_logo():
+    global psb_logo_label
+    if psb_logo_label and psb_logo_label.winfo_exists():
+        psb_logo_label.place(relx=0.5, rely=0.975, anchor="s")
+        psb_logo_label.lift()
+        return
+    logo_path = os.path.join(os.path.dirname(__file__), "PSB_Logo.png")
+    if not os.path.exists(logo_path):
+        return
+    try:
+        logo = Image.open(logo_path).convert("RGBA")
+        logo = logo.resize((116, 116), Image.Resampling.LANCZOS)
+        logo_bg = APP_BG
+        if bg_render_image is not None:
+            try:
+                px = bg_render_image.getpixel((root.winfo_screenwidth() // 2, int(root.winfo_screenheight() * 0.965)))
+                logo_bg = f"#{px[0]:02x}{px[1]:02x}{px[2]:02x}"
+            except Exception:
+                logo_bg = APP_BG
+        logo_photo = ImageTk.PhotoImage(logo)
+        psb_logo_label = tk.Label(
+            root,
+            image=logo_photo,
+            bd=0,
+            highlightthickness=0,
+            relief="flat",
+            bg=logo_bg,
+            padx=0,
+            pady=0,
+        )
+        psb_logo_label.image = logo_photo
+        psb_logo_label.place(relx=0.5, rely=0.975, anchor="s")
+        psb_logo_label.lift()
+    except Exception:
+        psb_logo_label = None
 
 
 def get_attendance_date():
@@ -128,15 +373,16 @@ def read_attendance_rows():
 def write_attendance_rows(rows):
     path = get_csv_filename()
     try:
+        daily_backup_csv_files()
         with open(path, "w", newline="", encoding="utf-8") as f:
             writer = csv.DictWriter(f, fieldnames=CSV_HEADERS)
             writer.writeheader()
             for row in rows:
                 writer.writerow(normalize_row(row))
     except PermissionError:
-        print(f"Permission denied: Cannot write to {path}")
+        logger.exception("Permission denied: Cannot write to %s", path)
     except Exception as e:
-        print(f"Error writing attendance rows: {e}")
+        logger.exception("Error writing attendance rows: %s", e)
 
 
 def get_open_session_index(rows, student_id):
@@ -181,11 +427,12 @@ def record_time_out(student_id):
     write_attendance_rows(rows)
     return time_out
 
-# ---------------- BEEP (cross-platform) ----------------
-import shutil
+# ---------------- BEEP ----------------
+
+CHIME_PATH = os.path.join(os.path.dirname(__file__), "Chime.mp3")
+CHIME_ALIAS = "libro_chime"
 
 def play_beep():
-    """Cross-platform beep: use winsound on Windows, `beep` command on Linux if present, otherwise fallback to ASCII bell."""
     try:
         if os.name == 'nt':
             try:
@@ -219,6 +466,22 @@ def play_double_beep():
     except Exception:
         pass
 
+
+def play_chime():
+    try:
+        if os.name == "nt" and os.path.exists(CHIME_PATH):
+            import ctypes
+
+            winmm = ctypes.windll.winmm
+            winmm.mciSendStringW(f"close {CHIME_ALIAS}", None, 0, None)
+            open_cmd = f'open "{CHIME_PATH}" type mpegvideo alias {CHIME_ALIAS}'
+            if winmm.mciSendStringW(open_cmd, None, 0, None) == 0:
+                winmm.mciSendStringW(f"play {CHIME_ALIAS} from 0", None, 0, None)
+                return
+    except Exception:
+        pass
+    play_beep()
+
 # ---------------- CUSTOM DIALOGS ----------------
 def show_info_dialog(title, message):
     messagebox.showinfo(title, message)
@@ -234,51 +497,81 @@ def show_yesno_dialog(title, message):
 
 
 def show_server_banner(ip, duration=8000):
-    """Show a transient, non-modal banner at the top of the app with an 'Open' button to open the web UI."""
     try:
         import webbrowser
-        # Avoid creating banner before root exists
         if not root:
             return
-        banner = tk.Frame(root, bg='#0d6efd', bd=1, relief=tk.RIDGE)
+        banner = tk.Frame(root, bg='#f3f3f3', bd=1, relief=tk.RIDGE)
         banner.place(relx=0.5, rely=0.01, anchor='n')
-        label = tk.Label(banner, text=f"Web UI: http://{ip}:5000", fg='white', bg='#0d6efd', font=("Arial", 12))
+        label = tk.Label(banner, text=f"Web UI: http://{ip}:5000", fg=TEXT_MAIN, bg='#f3f3f3', font=(FONT, 12, "bold"))
         label.pack(side='left', padx=(10,5), pady=5)
         def open_browser():
             try:
                 webbrowser.open(f'http://{ip}:5000')
             except Exception:
                 pass
-        btn = tk.Button(banner, text='Open', command=open_browser)
+        btn = tk.Button(banner, text='Open', command=open_browser, bg=PRIMARY, fg='white', bd=0)
         btn.pack(side='left', padx=(0,10), pady=5)
         def remove_banner():
             try:
                 banner.destroy()
             except Exception:
                 pass
-        # Auto-hide after duration milliseconds
         root.after(duration, remove_banner)
     except Exception:
         pass
 
-# ---------------- UI UTIL ----------------
+# ---------------- UI ----------------
 def clear():
     for widget in root.winfo_children():
-        if widget != bg_label:
+        if widget not in (bg_label, psb_logo_label):
             widget.destroy()
-    # Ensure background is at the back
     if bg_label:
         bg_label.lower()
+    if psb_logo_label:
+        psb_logo_label.lift()
 
 
-def build_card(title, subtitle=None):
+def build_card(title, subtitle=None, show_clock=False, card_relwidth=0.72, card_relheight=0.52):
+    global top_title_label
     clear()
-    card = tk.Frame(root, bg=CARD_BG, highlightbackground=BORDER, highlightthickness=1)
-    card.place(relx=0.5, rely=0.5, anchor="center", relwidth=0.74, relheight=0.82)
+    top_title_label = tk.Label(root, text="Library Attendance System", font=(FONT, 50), bg=top_title_bg, fg=TEXT_MAIN)
+    top_title_label.place(relx=0.5, rely=0.08, anchor="center")
 
-    tk.Label(card, text=title, font=(FONT, 36, "bold"), bg=CARD_BG, fg=TEXT_MAIN).pack(pady=(30, 10))
+    screen_w = root.winfo_screenwidth()
+    screen_h = root.winfo_screenheight()
+    card_w = int(screen_w * card_relwidth)
+    card_h = int(screen_h * card_relheight)
+    card_x = (screen_w - card_w) // 2
+    card_y = int(screen_h * 0.20)
+
+    if bg_render_image is not None:
+        bg_crop = bg_render_image.crop((card_x, card_y, card_x + card_w, card_y + card_h))
+    else:
+        bg_crop = None
+    card_image = make_rounded_card_image(card_w, card_h, radius=46) if bg_crop is None else Image.alpha_composite(
+        bg_crop.convert("RGBA"),
+        Image.new("RGBA", (card_w, card_h), (0, 0, 0, 0)),
+    )
+    if bg_crop is not None:
+        draw = ImageDraw.Draw(card_image)
+        draw.rounded_rectangle((0, 0, card_w - 1, card_h - 1), radius=46, fill=(242, 242, 242, 245))
+    card_photo = ImageTk.PhotoImage(card_image)
+    card_shell = tk.Label(root, image=card_photo, bd=0, highlightthickness=0, bg=APP_BG)
+    card_shell.image = card_photo
+    card_shell.place(x=card_x, y=card_y, width=card_w, height=card_h)
+
+    card = tk.Frame(card_shell, bg=CARD_BG)
+    card.place(x=22, y=22, width=card_w - 44, height=card_h - 44)
+
+    tk.Label(card, text=title, font=(FONT, 38), bg=CARD_BG, fg=TEXT_MAIN).pack(pady=(22, 10))
     if subtitle:
-        tk.Label(card, text=subtitle, font=(FONT, 16), bg=CARD_BG, fg=TEXT_MUTED, wraplength=900, justify=tk.CENTER).pack(pady=(0, 22))
+        tk.Label(card, text=subtitle, font=(FONT, 16), bg=CARD_BG, fg=TEXT_MUTED, wraplength=900, justify=tk.CENTER).pack(pady=(0, 16))
+    if show_clock:
+        clock_label = tk.Label(card, text=format_clock_text(), font=(FONT, 66, "bold"), bg=CARD_BG, fg=TEXT_MAIN)
+        clock_label.pack(side=tk.BOTTOM, pady=(0, 12))
+        bind_live_clock(clock_label)
+    place_psb_logo()
     return card
 
 
@@ -292,10 +585,9 @@ def initial_prompt():
 
 # ---------------- LIBRARIAN VERIFY ----------------
 def librarian_verify_start():
-    card = build_card("Librarian Verification", "Scan Librarian ID to start attendance.")
+    card = build_card("Scan Librarian ID to start\nattendance", show_clock=True, card_relwidth=0.78, card_relheight=0.56)
 
-    entry = tk.Entry(card, font=(FONT, 28), width=24, bd=0, highlightthickness=1, highlightbackground=BORDER)
-    entry.pack(pady=30, ipady=10)
+    entry = make_scan_entry(card, width_chars=20)
     entry.focus_set()
 
     def check(event=None):
@@ -313,9 +605,8 @@ def librarian_verify_start():
     
 # ---------------- STANDBY ----------------
 def standby_mode():
-    card = build_card("Scan your ID", "Student scan auto-detects Time In or Time Out.")
-    entry = tk.Entry(card, font=(FONT, 28), width=24, bd=0, highlightthickness=1, highlightbackground=BORDER)
-    entry.pack(pady=30, ipady=10)
+    card = build_card("Scan Student/Staff ID", show_clock=True, card_relwidth=0.78, card_relheight=0.56)
+    entry = make_scan_entry(card, width_chars=20)
     entry.focus_set()
 
     def process_scan(event=None):
@@ -325,29 +616,37 @@ def standby_mode():
             play_beep()
             admin_menu()
             return
-        if sid in students:
+        student, resolved_sid, reason = find_student_from_scan(sid)
+        if student and resolved_sid:
             now = time.time()
-            if sid in last_scan_time and now - last_scan_time[sid] < SCAN_TIMEOUT:
+            if resolved_sid in last_scan_time and now - last_scan_time[resolved_sid] < SCAN_TIMEOUT:
                 play_double_beep()
                 show_warning_dialog("Duplicate", "Please wait a moment before scanning again.")
                 return
-            last_scan_time[sid] = now
+            last_scan_time[resolved_sid] = now
             global current_student, current_student_id
-            current_student_id = sid
-            current_student = students[sid]
-            if has_open_session(sid):
+            current_student_id = resolved_sid
+            current_student = student
+            if has_open_session(resolved_sid):
                 confirm_time_out()
             else:
                 select_purpose()
         else:
             play_double_beep()
-            show_error_dialog("Not Found", "ID not recognized.")
+            if reason == "invalid_id_format":
+                show_error_dialog("Not Found", "Invalid ID format.")
+            elif reason == "name_mismatch":
+                show_error_dialog("Not Found", "ID was found, but the scanned name does not match the roster.")
+            elif reason == "id_not_found":
+                show_error_dialog("Not Found", "ID not recognized in any roster CSV.")
+            else:
+                show_error_dialog("Not Found", "Invalid scan input.")
 
     entry.bind("<Return>", process_scan)
 
 # ---------------- PURPOSE SELECT ----------------
 def select_purpose():
-    card = build_card(f"Hi, {current_student['name']}", "Select one or more purposes for this Time In.")
+    card = build_card(f"Hi, {current_student['name']}", "Select one or more purposes for this Time In.", card_relheight=0.70)
     checkbox_vars = []
 
     for p in purpose_options:
@@ -413,7 +712,7 @@ def confirm_student(purpose):
            f"Purpose: {purpose}\n\n"
            f"Proceed with Time In?")
     if show_yesno_dialog("Confirm", msg):
-        play_beep()
+        play_chime()
         time_in = record_time_in(current_student_id, current_student, purpose)
         show_info_dialog("Success", f"Time In recorded at {time_in}.")
         standby_mode()
@@ -430,7 +729,7 @@ def confirm_time_out():
     if show_yesno_dialog("Confirm Time Out", msg):
         time_out = record_time_out(current_student_id)
         if time_out:
-            play_beep()
+            play_chime()
             show_info_dialog("Success", f"Time Out recorded at {time_out}.")
         else:
             play_double_beep()
@@ -442,22 +741,30 @@ def confirm_time_out():
 
 # ---------------- ADMIN MENU ----------------
 def admin_menu():
-    card = build_card("Admin Portal", "Attendance controls")
+    card = build_card("Admin Portal", "Attendance controls", card_relheight=0.70)
     tk.Button(card, text="View Today's Log", width=30, height=2, font=(FONT, 20), bg="#111827", fg="white", bd=0, command=view_log).pack(pady=10)
     tk.Button(card, text="Exit Admin", width=30, height=2, font=(FONT, 20), bg="#f3f4f6", fg=TEXT_MAIN, bd=0, command=standby_mode).pack(pady=10)
     tk.Button(card, text="Desktop Mode", width=30, height=2, font=(FONT, 20), bg="#f3f4f6", fg=TEXT_MAIN, bd=0, command=enter_desktop_mode).pack(pady=10)
 
 def view_log():
-    card = build_card(f"Today's Logs ({get_attendance_date()})")
+    card = build_card(f"Today's Logs ({get_attendance_date()})", card_relheight=0.72)
     
-    # Create frame for text and scrollbar
     frame = tk.Frame(card, bg=CARD_BG)
     frame.pack(pady=15, fill=tk.BOTH, expand=True, padx=30)
     
     scrollbar = tk.Scrollbar(frame)
     scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
     
-    text = tk.Text(frame, width=90, height=12, font=(FONT, 13), yscrollcommand=scrollbar.set, bg="#f9fafb", fg=TEXT_MAIN, bd=0)
+    text = tk.Text(
+        frame,
+        width=90,
+        height=12,
+        font=(FONT, 13),
+        yscrollcommand=scrollbar.set,
+        bg="#f9fafb",
+        fg=TEXT_MAIN,
+        bd=0,
+    )
     text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
     scrollbar.config(command=text.yview)
     
@@ -466,11 +773,9 @@ def view_log():
         with open(csv_filename, "r", encoding="utf-8") as f:
             lines = f.readlines()
             if lines:
-                # Format header
                 header = lines[0].strip()
                 text.insert(tk.END, header + "\n")
                 text.insert(tk.END, "-" * 80 + "\n")
-                # Format data rows
                 for line in lines[1:]:
                     text.insert(tk.END, line)
             else:
@@ -478,12 +783,12 @@ def view_log():
     else:
         text.insert(tk.END, "No logs yet.")
     
-    text.config(state=tk.DISABLED)  # Make read-only
+    text.config(state=tk.DISABLED)
     tk.Button(card, text="Back", width=30, height=2, font=(FONT, 18), bg="#f3f4f6", fg=TEXT_MAIN, bd=0, command=admin_menu).pack(pady=15)
     
 def enter_desktop_mode():
     root.attributes("-fullscreen", False)
-    root.geometry("1000x600")  # optional window size
+    root.geometry("1000x600")
 
 def enter_kiosk_mode():
     root.attributes("-fullscreen", True)
@@ -526,7 +831,6 @@ def start_server():
     if os.name == 'posix' and hasattr(os, 'setsid'):
         kwargs['preexec_fn'] = os.setsid
     elif os.name == 'nt':
-        # CREATE_NEW_PROCESS_GROUP to avoid sending signals to entire console group
         kwargs['creationflags'] = subprocess.CREATE_NEW_PROCESS_GROUP
     server_proc = subprocess.Popen(args, **kwargs)
     started_server = True
@@ -551,20 +855,20 @@ def stop_server():
             started_server = False
 
 
-# Ensure server subprocess is stopped on interpreter exit
 atexit.register(stop_server)
 
 
 # ---------------- MAIN ----------------
-# Start server even in headless mode (so web UI is available)
 cleanup_old_csv_files(retention_days=30)
+ensure_students_loaded(force=True)
+daily_backup_csv_files()
 try:
     start_server()
 except Exception:
-    print('Failed to start server subprocess')
+    logger.exception("Failed to start server subprocess")
 
 if not TK_AVAILABLE:
-    print("tkinter not available; running headless. Server should be accessible at http://<ip>:5000")
+    logger.warning("tkinter not available; running headless")
     try:
         if server_proc:
             server_proc.wait()
@@ -578,7 +882,7 @@ if not TK_AVAILABLE:
 try:
     root = tk.Tk()
 except Exception as e:
-    print("No graphical display available or tkinter error:", e)
+    logger.exception("No graphical display available or tkinter error: %s", e)
     try:
         if server_proc:
             server_proc.wait()
@@ -591,11 +895,16 @@ except Exception as e:
 
 root.title("Library Attendance System")
 root.attributes("-fullscreen", True)  # Fullscreen auto
-bg_label = None
 bg_image_path = os.path.join(os.path.dirname(__file__), "Background.png")
 if os.path.exists(bg_image_path):
-    bg_image = Image.open(bg_image_path)
+    bg_image = Image.open(bg_image_path).convert("RGB")
     bg_image = bg_image.resize((root.winfo_screenwidth(), root.winfo_screenheight()), Image.Resampling.LANCZOS)
+    bg_render_image = bg_image
+    try:
+        px = bg_render_image.getpixel((root.winfo_screenwidth() // 2, int(root.winfo_screenheight() * 0.08)))
+        top_title_bg = f"#{px[0]:02x}{px[1]:02x}{px[2]:02x}"
+    except Exception:
+        top_title_bg = APP_BG
     bg_photo = ImageTk.PhotoImage(bg_image)
     bg_label = tk.Label(root, image=bg_photo)
     bg_label.image = bg_photo
@@ -603,11 +912,11 @@ if os.path.exists(bg_image_path):
     bg_label.lower()
 else:
     root.configure(bg=APP_BG)
+    top_title_bg = APP_BG
 
-# Start app
-# If we successfully started the server subprocess, let the user know via the UI
+place_psb_logo()
+
 try:
-    # If server started by this process, or already running, show banner at launch
     if started_server or is_server_running('127.0.0.1', 5000):
         ip = get_local_ip()
         root.after(500, lambda: show_server_banner(ip))
@@ -617,6 +926,5 @@ except Exception:
 root.after(100, initial_prompt)
 root.mainloop()
 
-# On normal exit, ensure server subprocess is stopped
 stop_server()
 

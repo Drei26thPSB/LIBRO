@@ -1,0 +1,29 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.5.2.0
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Student ID Manager for LIBRO(Beta)", "Student ID Manager for LIBRO(Beta)", "{2F9B0CCA-95A0-8309-ED3D-2716C5C37C2D}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "StudentIDManager", "Student ID Manager for LIBRO(Beta)\StudentIDManager.csproj", "{868D5F51-8001-1C57-B22E-307654DED434}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{868D5F51-8001-1C57-B22E-307654DED434}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{868D5F51-8001-1C57-B22E-307654DED434}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{868D5F51-8001-1C57-B22E-307654DED434}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{868D5F51-8001-1C57-B22E-307654DED434}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{868D5F51-8001-1C57-B22E-307654DED434} = {2F9B0CCA-95A0-8309-ED3D-2716C5C37C2D}
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {BF16C541-5DE7-4161-BB6B-F1CEDF7A0236}
+	EndGlobalSection
+EndGlobal
