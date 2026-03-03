@@ -250,6 +250,21 @@ bg_render_image = None
 psb_logo_label = None
 top_title_label = None
 top_title_bg = APP_BG
+UI_SCALE = 1.0
+SMALL_DISPLAY = False
+
+
+def update_ui_scale():
+    global UI_SCALE, SMALL_DISPLAY
+    sw = root.winfo_screenwidth()
+    sh = root.winfo_screenheight()
+    SMALL_DISPLAY = sw <= 900 or sh <= 520
+    raw = min(sw / 1280.0, sh / 720.0)
+    UI_SCALE = max(0.58, min(1.0, raw))
+
+
+def ui_px(value, minimum=8):
+    return max(minimum, int(round(value * UI_SCALE)))
 
 
 def format_clock_text():
@@ -279,10 +294,10 @@ def make_rounded_card_image(width, height, radius=42):
 
 def make_scan_entry(parent, width_chars=24):
     entry_shell = tk.Frame(parent, bg=INPUT_BG, bd=0, highlightthickness=0)
-    entry_shell.pack(pady=18, ipady=8, ipadx=38)
+    entry_shell.pack(pady=ui_px(18, 8), ipady=ui_px(8, 4), ipadx=ui_px(38, 12))
     entry = tk.Entry(
         entry_shell,
-        font=(FONT, 28, "bold"),
+        font=(FONT, ui_px(28, 14), "bold"),
         width=width_chars,
         bd=0,
         bg=INPUT_BG,
@@ -298,7 +313,7 @@ def make_scan_entry(parent, width_chars=24):
 def place_psb_logo():
     global psb_logo_label
     if psb_logo_label and psb_logo_label.winfo_exists():
-        psb_logo_label.place(relx=0.5, rely=0.975, anchor="s")
+        psb_logo_label.place(relx=0.5, rely=0.985, anchor="s")
         psb_logo_label.lift()
         return
     logo_path = os.path.join(os.path.dirname(__file__), "PSB_Logo.png")
@@ -306,7 +321,8 @@ def place_psb_logo():
         return
     try:
         logo = Image.open(logo_path).convert("RGBA")
-        logo = logo.resize((116, 116), Image.Resampling.LANCZOS)
+        logo_size = ui_px(116, 64)
+        logo = logo.resize((logo_size, logo_size), Image.Resampling.LANCZOS)
         logo_bg = APP_BG
         if bg_render_image is not None:
             try:
@@ -326,7 +342,7 @@ def place_psb_logo():
             pady=0,
         )
         psb_logo_label.image = logo_photo
-        psb_logo_label.place(relx=0.5, rely=0.975, anchor="s")
+        psb_logo_label.place(relx=0.5, rely=0.985, anchor="s")
         psb_logo_label.lift()
     except Exception:
         psb_logo_label = None
@@ -503,7 +519,7 @@ def show_server_banner(ip, duration=8000):
             return
         banner = tk.Frame(root, bg='#f3f3f3', bd=1, relief=tk.RIDGE)
         banner.place(relx=0.5, rely=0.01, anchor='n')
-        label = tk.Label(banner, text=f"Web UI: http://{ip}:5000", fg=TEXT_MAIN, bg='#f3f3f3', font=(FONT, 12, "bold"))
+        label = tk.Label(banner, text=f"Web UI: http://{ip}:5000", fg=TEXT_MAIN, bg='#f3f3f3', font=(FONT, ui_px(12, 8), "bold"))
         label.pack(side='left', padx=(10,5), pady=5)
         def open_browser():
             try:
@@ -535,41 +551,61 @@ def clear():
 def build_card(title, subtitle=None, show_clock=False, card_relwidth=0.72, card_relheight=0.52):
     global top_title_label
     clear()
-    top_title_label = tk.Label(root, text="Library Attendance System", font=(FONT, 50), bg=top_title_bg, fg=TEXT_MAIN)
-    top_title_label.place(relx=0.5, rely=0.08, anchor="center")
-
     screen_w = root.winfo_screenwidth()
     screen_h = root.winfo_screenheight()
+    if SMALL_DISPLAY:
+        card_relwidth = max(card_relwidth, 0.86)
+        card_relheight = max(card_relheight, 0.60)
+
+    top_title_label = tk.Label(
+        root,
+        text="Library Attendance System",
+        font=(FONT, ui_px(50, 22)),
+        bg=top_title_bg,
+        fg=TEXT_MAIN,
+    )
+    top_title_label.place(relx=0.5, rely=0.08 if not SMALL_DISPLAY else 0.07, anchor="center")
+
     card_w = int(screen_w * card_relwidth)
     card_h = int(screen_h * card_relheight)
     card_x = (screen_w - card_w) // 2
-    card_y = int(screen_h * 0.20)
+    card_y = int(screen_h * (0.20 if not SMALL_DISPLAY else 0.17))
 
     if bg_render_image is not None:
         bg_crop = bg_render_image.crop((card_x, card_y, card_x + card_w, card_y + card_h))
     else:
         bg_crop = None
-    card_image = make_rounded_card_image(card_w, card_h, radius=46) if bg_crop is None else Image.alpha_composite(
+    card_radius = ui_px(46, 16)
+    card_image = make_rounded_card_image(card_w, card_h, radius=card_radius) if bg_crop is None else Image.alpha_composite(
         bg_crop.convert("RGBA"),
         Image.new("RGBA", (card_w, card_h), (0, 0, 0, 0)),
     )
     if bg_crop is not None:
         draw = ImageDraw.Draw(card_image)
-        draw.rounded_rectangle((0, 0, card_w - 1, card_h - 1), radius=46, fill=(242, 242, 242, 245))
+        draw.rounded_rectangle((0, 0, card_w - 1, card_h - 1), radius=card_radius, fill=(242, 242, 242, 245))
     card_photo = ImageTk.PhotoImage(card_image)
     card_shell = tk.Label(root, image=card_photo, bd=0, highlightthickness=0, bg=APP_BG)
     card_shell.image = card_photo
     card_shell.place(x=card_x, y=card_y, width=card_w, height=card_h)
 
+    pad = ui_px(22, 10)
     card = tk.Frame(card_shell, bg=CARD_BG)
-    card.place(x=22, y=22, width=card_w - 44, height=card_h - 44)
+    card.place(x=pad, y=pad, width=card_w - (pad * 2), height=card_h - (pad * 2))
 
-    tk.Label(card, text=title, font=(FONT, 38), bg=CARD_BG, fg=TEXT_MAIN).pack(pady=(22, 10))
+    tk.Label(card, text=title, font=(FONT, ui_px(38, 16)), bg=CARD_BG, fg=TEXT_MAIN).pack(pady=(ui_px(22, 8), ui_px(10, 4)))
     if subtitle:
-        tk.Label(card, text=subtitle, font=(FONT, 16), bg=CARD_BG, fg=TEXT_MUTED, wraplength=900, justify=tk.CENTER).pack(pady=(0, 16))
+        tk.Label(
+            card,
+            text=subtitle,
+            font=(FONT, ui_px(16, 9)),
+            bg=CARD_BG,
+            fg=TEXT_MUTED,
+            wraplength=min(900, int(card_w * 0.88)),
+            justify=tk.CENTER,
+        ).pack(pady=(0, ui_px(16, 6)))
     if show_clock:
-        clock_label = tk.Label(card, text=format_clock_text(), font=(FONT, 66, "bold"), bg=CARD_BG, fg=TEXT_MAIN)
-        clock_label.pack(side=tk.BOTTOM, pady=(0, 12))
+        clock_label = tk.Label(card, text=format_clock_text(), font=(FONT, ui_px(66, 22), "bold"), bg=CARD_BG, fg=TEXT_MAIN)
+        clock_label.pack(side=tk.BOTTOM, pady=(0, ui_px(12, 4)))
         bind_live_clock(clock_label)
     place_psb_logo()
     return card
@@ -587,7 +623,7 @@ def initial_prompt():
 def librarian_verify_start():
     card = build_card("Scan Librarian ID to start\nattendance", show_clock=True, card_relwidth=0.78, card_relheight=0.56)
 
-    entry = make_scan_entry(card, width_chars=20)
+    entry = make_scan_entry(card, width_chars=14 if SMALL_DISPLAY else 20)
     entry.focus_set()
 
     def check(event=None):
@@ -606,7 +642,7 @@ def librarian_verify_start():
 # ---------------- STANDBY ----------------
 def standby_mode():
     card = build_card("Scan Student/Staff ID", show_clock=True, card_relwidth=0.78, card_relheight=0.56)
-    entry = make_scan_entry(card, width_chars=20)
+    entry = make_scan_entry(card, width_chars=14 if SMALL_DISPLAY else 20)
     entry.focus_set()
 
     def process_scan(event=None):
@@ -658,7 +694,7 @@ def select_purpose():
             variable=var,
             onvalue=True,
             offvalue=False,
-            font=(FONT, 20),
+            font=(FONT, ui_px(20, 11)),
             bg=CARD_BG,
             fg=TEXT_MAIN,
             anchor="w",
@@ -666,7 +702,7 @@ def select_purpose():
             pady=8,
             selectcolor="#f9fafb",
             activebackground=CARD_BG,
-        ).pack(fill="x", padx=120, pady=4)
+        ).pack(fill="x", padx=ui_px(120, 24), pady=ui_px(4, 2))
 
     def submit_purposes():
         selected = [label for label, var in checkbox_vars if var.get()]
@@ -680,14 +716,14 @@ def select_purpose():
         card,
         text="Confirm Time In",
         width=20,
-        font=(FONT, 20, "bold"),
+        font=(FONT, ui_px(20, 11), "bold"),
         bg=PRIMARY,
         fg="white",
         activebackground=PRIMARY_ACTIVE,
         activeforeground="white",
         bd=0,
-        padx=20,
-        pady=10,
+        padx=ui_px(20, 8),
+        pady=ui_px(10, 4),
         command=submit_purposes,
     ).pack(pady=(24, 8))
 
@@ -695,12 +731,12 @@ def select_purpose():
         card,
         text="Back",
         width=20,
-        font=(FONT, 16),
+        font=(FONT, ui_px(16, 10)),
         bg="#f3f4f6",
         fg=TEXT_MAIN,
         bd=0,
-        padx=18,
-        pady=8,
+        padx=ui_px(18, 8),
+        pady=ui_px(8, 4),
         command=standby_mode,
     ).pack()
 
@@ -742,9 +778,9 @@ def confirm_time_out():
 # ---------------- ADMIN MENU ----------------
 def admin_menu():
     card = build_card("Admin Portal", "Attendance controls", card_relheight=0.70)
-    tk.Button(card, text="View Today's Log", width=30, height=2, font=(FONT, 20), bg="#111827", fg="white", bd=0, command=view_log).pack(pady=10)
-    tk.Button(card, text="Exit Admin", width=30, height=2, font=(FONT, 20), bg="#f3f4f6", fg=TEXT_MAIN, bd=0, command=standby_mode).pack(pady=10)
-    tk.Button(card, text="Desktop Mode", width=30, height=2, font=(FONT, 20), bg="#f3f4f6", fg=TEXT_MAIN, bd=0, command=enter_desktop_mode).pack(pady=10)
+    tk.Button(card, text="View Today's Log", width=30, height=2, font=(FONT, ui_px(20, 11)), bg="#111827", fg="white", bd=0, command=view_log).pack(pady=ui_px(10, 4))
+    tk.Button(card, text="Exit Admin", width=30, height=2, font=(FONT, ui_px(20, 11)), bg="#f3f4f6", fg=TEXT_MAIN, bd=0, command=standby_mode).pack(pady=ui_px(10, 4))
+    tk.Button(card, text="Desktop Mode", width=30, height=2, font=(FONT, ui_px(20, 11)), bg="#f3f4f6", fg=TEXT_MAIN, bd=0, command=enter_desktop_mode).pack(pady=ui_px(10, 4))
 
 def view_log():
     card = build_card(f"Today's Logs ({get_attendance_date()})", card_relheight=0.72)
@@ -759,7 +795,7 @@ def view_log():
         frame,
         width=90,
         height=12,
-        font=(FONT, 13),
+        font=(FONT, ui_px(13, 9)),
         yscrollcommand=scrollbar.set,
         bg="#f9fafb",
         fg=TEXT_MAIN,
@@ -784,7 +820,7 @@ def view_log():
         text.insert(tk.END, "No logs yet.")
     
     text.config(state=tk.DISABLED)
-    tk.Button(card, text="Back", width=30, height=2, font=(FONT, 18), bg="#f3f4f6", fg=TEXT_MAIN, bd=0, command=admin_menu).pack(pady=15)
+    tk.Button(card, text="Back", width=30, height=2, font=(FONT, ui_px(18, 10)), bg="#f3f4f6", fg=TEXT_MAIN, bd=0, command=admin_menu).pack(pady=ui_px(15, 6))
     
 def enter_desktop_mode():
     root.attributes("-fullscreen", False)
@@ -895,6 +931,7 @@ except Exception as e:
 
 root.title("Library Attendance System")
 root.attributes("-fullscreen", True)  # Fullscreen auto
+update_ui_scale()
 bg_image_path = os.path.join(os.path.dirname(__file__), "Background.png")
 if os.path.exists(bg_image_path):
     bg_image = Image.open(bg_image_path).convert("RGB")
