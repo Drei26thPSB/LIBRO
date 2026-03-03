@@ -823,11 +823,22 @@ def view_log():
     tk.Button(card, text="Back", width=30, height=2, font=(FONT, ui_px(18, 10)), bg="#f3f4f6", fg=TEXT_MAIN, bd=0, command=admin_menu).pack(pady=ui_px(15, 6))
     
 def enter_desktop_mode():
+    root.overrideredirect(False)
     root.attributes("-fullscreen", False)
     root.geometry("1000x600")
 
 def enter_kiosk_mode():
+    force_kiosk_mode()
+
+
+def force_kiosk_mode():
+    sw = root.winfo_screenwidth()
+    sh = root.winfo_screenheight()
+    root.overrideredirect(True)
     root.attributes("-fullscreen", True)
+    root.geometry(f"{sw}x{sh}+0+0")
+    root.lift()
+    root.focus_force()
 
 # ---------------- SERVER MANAGEMENT ----------------
 server_proc = None
@@ -930,7 +941,8 @@ except Exception as e:
     sys.exit(0)
 
 root.title("Library Attendance System")
-root.attributes("-fullscreen", True)  # Fullscreen auto
+force_kiosk_mode()
+root.after(250, force_kiosk_mode)
 update_ui_scale()
 bg_image_path = os.path.join(os.path.dirname(__file__), "Background.png")
 if os.path.exists(bg_image_path):
