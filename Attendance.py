@@ -244,6 +244,7 @@ WARN = "#9a3412"
 DANGER = "#b42318"
 FONT = "Segoe UI"
 INPUT_BG = "#cdcdcf"
+BOOT_DIRECT_START = os.getenv("LIBRO_BOOT_DIRECT_START", "1") == "1"
 
 bg_label = None
 bg_render_image = None
@@ -252,12 +253,12 @@ top_title_label = None
 top_title_bg = APP_BG
 UI_SCALE = 1.0
 SMALL_DISPLAY = False
+KIOSK_MODE = True
 
 
 def update_ui_scale():
     global UI_SCALE, SMALL_DISPLAY
-    sw = root.winfo_screenwidth()
-    sh = root.winfo_screenheight()
+    sw, sh = get_viewport_size()
     SMALL_DISPLAY = sw <= 900 or sh <= 520
     raw = min(sw / 1280.0, sh / 720.0)
     UI_SCALE = max(0.58, min(1.0, raw))
@@ -265,6 +266,17 @@ def update_ui_scale():
 
 def ui_px(value, minimum=8):
     return max(minimum, int(round(value * UI_SCALE)))
+
+
+def get_viewport_size():
+    if KIOSK_MODE:
+        return root.winfo_screenwidth(), root.winfo_screenheight()
+    root.update_idletasks()
+    ww = root.winfo_width()
+    wh = root.winfo_height()
+    if ww <= 1 or wh <= 1:
+        return root.winfo_screenwidth(), root.winfo_screenheight()
+    return ww, wh
 
 
 def format_clock_text():
@@ -294,10 +306,10 @@ def make_rounded_card_image(width, height, radius=42):
 
 def make_scan_entry(parent, width_chars=24):
     entry_shell = tk.Frame(parent, bg=INPUT_BG, bd=0, highlightthickness=0)
-    entry_shell.pack(pady=ui_px(18, 8), ipady=ui_px(8, 4), ipadx=ui_px(38, 12))
+    entry_shell.pack(pady=ui_px(18, 6), ipady=ui_px(8, 3), ipadx=ui_px(38, 8))
     entry = tk.Entry(
         entry_shell,
-        font=(FONT, ui_px(28, 14), "bold"),
+        font=(FONT, ui_px(28, 12), "bold"),
         width=width_chars,
         bd=0,
         bg=INPUT_BG,
@@ -500,16 +512,24 @@ def play_chime():
 
 # ---------------- CUSTOM DIALOGS ----------------
 def show_info_dialog(title, message):
-    messagebox.showinfo(title, message)
+    root.lift()
+    root.focus_force()
+    messagebox.showinfo(title, message, parent=root)
 
 def show_error_dialog(title, message):
-    messagebox.showerror(title, message)
+    root.lift()
+    root.focus_force()
+    messagebox.showerror(title, message, parent=root)
 
 def show_warning_dialog(title, message):
-    messagebox.showwarning(title, message)
+    root.lift()
+    root.focus_force()
+    messagebox.showwarning(title, message, parent=root)
 
 def show_yesno_dialog(title, message):
-    return messagebox.askyesno(title, message)
+    root.lift()
+    root.focus_force()
+    return messagebox.askyesno(title, message, parent=root)
 
 
 def show_server_banner(ip, duration=8000):
@@ -551,25 +571,24 @@ def clear():
 def build_card(title, subtitle=None, show_clock=False, card_relwidth=0.72, card_relheight=0.52):
     global top_title_label
     clear()
-    screen_w = root.winfo_screenwidth()
-    screen_h = root.winfo_screenheight()
+    screen_w, screen_h = get_viewport_size()
     if SMALL_DISPLAY:
         card_relwidth = max(card_relwidth, 0.86)
-        card_relheight = max(card_relheight, 0.60)
+        card_relheight = max(card_relheight, 0.70)
 
     top_title_label = tk.Label(
         root,
         text="Library Attendance System",
-        font=(FONT, ui_px(50, 22)),
+        font=(FONT, ui_px(50, 14)),
         bg=top_title_bg,
         fg=TEXT_MAIN,
     )
-    top_title_label.place(relx=0.5, rely=0.08 if not SMALL_DISPLAY else 0.07, anchor="center")
+    top_title_label.place(relx=0.5, rely=0.08 if not SMALL_DISPLAY else 0.055, anchor="center")
 
     card_w = int(screen_w * card_relwidth)
     card_h = int(screen_h * card_relheight)
     card_x = (screen_w - card_w) // 2
-    card_y = int(screen_h * (0.20 if not SMALL_DISPLAY else 0.17))
+    card_y = int(screen_h * (0.20 if not SMALL_DISPLAY else 0.11))
 
     if bg_render_image is not None:
         bg_crop = bg_render_image.crop((card_x, card_y, card_x + card_w, card_y + card_h))
@@ -584,28 +603,29 @@ def build_card(title, subtitle=None, show_clock=False, card_relwidth=0.72, card_
         draw = ImageDraw.Draw(card_image)
         draw.rounded_rectangle((0, 0, card_w - 1, card_h - 1), radius=card_radius, fill=(242, 242, 242, 245))
     card_photo = ImageTk.PhotoImage(card_image)
-    card_shell = tk.Label(root, image=card_photo, bd=0, highlightthickness=0, bg=APP_BG)
-    card_shell.image = card_photo
+    card_shell = tk.Canvas(root, bd=0, highlightthickness=0, bg=APP_BG)
+    card_shell.bg_photo = card_photo
+    card_shell.create_image(0, 0, image=card_photo, anchor="nw")
     card_shell.place(x=card_x, y=card_y, width=card_w, height=card_h)
 
     pad = ui_px(22, 10)
     card = tk.Frame(card_shell, bg=CARD_BG)
-    card.place(x=pad, y=pad, width=card_w - (pad * 2), height=card_h - (pad * 2))
+    card_shell.create_window(pad, pad, anchor="nw", window=card, width=card_w - (pad * 2), height=card_h - (pad * 2))
 
-    tk.Label(card, text=title, font=(FONT, ui_px(38, 16)), bg=CARD_BG, fg=TEXT_MAIN).pack(pady=(ui_px(22, 8), ui_px(10, 4)))
+    tk.Label(card, text=title, font=(FONT, ui_px(38, 12)), bg=CARD_BG, fg=TEXT_MAIN).pack(pady=(ui_px(18, 4), ui_px(8, 2)))
     if subtitle:
         tk.Label(
             card,
             text=subtitle,
-            font=(FONT, ui_px(16, 9)),
+            font=(FONT, ui_px(16, 7)),
             bg=CARD_BG,
             fg=TEXT_MUTED,
             wraplength=min(900, int(card_w * 0.88)),
             justify=tk.CENTER,
-        ).pack(pady=(0, ui_px(16, 6)))
+        ).pack(pady=(0, ui_px(10, 2)))
     if show_clock:
-        clock_label = tk.Label(card, text=format_clock_text(), font=(FONT, ui_px(66, 22), "bold"), bg=CARD_BG, fg=TEXT_MAIN)
-        clock_label.pack(side=tk.BOTTOM, pady=(0, ui_px(12, 4)))
+        clock_label = tk.Label(card, text=format_clock_text(), font=(FONT, ui_px(56, 14), "bold"), bg=CARD_BG, fg=TEXT_MAIN)
+        clock_label.pack(side=tk.BOTTOM, pady=(0, ui_px(12, 2)))
         bind_live_clock(clock_label)
     place_psb_logo()
     return card
@@ -613,6 +633,9 @@ def build_card(title, subtitle=None, show_clock=False, card_relwidth=0.72, card_
 
 # ---------------- STARTUP ----------------
 def initial_prompt():
+    if BOOT_DIRECT_START:
+        librarian_verify_start()
+        return
     date = datetime.datetime.now().strftime("%d/%m/%Y")
     if show_yesno_dialog("Start Attendance", f"Start attendance for {date}?"):
         librarian_verify_start()
@@ -621,9 +644,9 @@ def initial_prompt():
 
 # ---------------- LIBRARIAN VERIFY ----------------
 def librarian_verify_start():
-    card = build_card("Scan Librarian ID to start\nattendance", show_clock=True, card_relwidth=0.78, card_relheight=0.56)
+    card = build_card("Scan Librarian ID to start\nattendance", show_clock=True, card_relwidth=0.78, card_relheight=0.62)
 
-    entry = make_scan_entry(card, width_chars=14 if SMALL_DISPLAY else 20)
+    entry = make_scan_entry(card, width_chars=12 if SMALL_DISPLAY else 20)
     entry.focus_set()
 
     def check(event=None):
@@ -641,8 +664,8 @@ def librarian_verify_start():
     
 # ---------------- STANDBY ----------------
 def standby_mode():
-    card = build_card("Scan Student/Staff ID", show_clock=True, card_relwidth=0.78, card_relheight=0.56)
-    entry = make_scan_entry(card, width_chars=14 if SMALL_DISPLAY else 20)
+    card = build_card("Scan Student/Staff ID", show_clock=True, card_relwidth=0.78, card_relheight=0.62)
+    entry = make_scan_entry(card, width_chars=12 if SMALL_DISPLAY else 20)
     entry.focus_set()
 
     def process_scan(event=None):
@@ -682,19 +705,25 @@ def standby_mode():
 
 # ---------------- PURPOSE SELECT ----------------
 def select_purpose():
-    card = build_card(f"Hi, {current_student['name']}", "Select one or more purposes for this Time In.", card_relheight=0.70)
+    card = build_card(
+        f"Hi, {current_student['name']}",
+        "Select one or more purposes for this Time In.",
+        card_relheight=0.84 if SMALL_DISPLAY else 0.70,
+    )
     checkbox_vars = []
+    list_frame = tk.Frame(card, bg=CARD_BG)
+    list_frame.pack(fill="both", expand=True)
 
     for p in purpose_options:
         var = tk.BooleanVar(value=False)
         checkbox_vars.append((p, var))
         tk.Checkbutton(
-            card,
+            list_frame,
             text=p,
             variable=var,
             onvalue=True,
             offvalue=False,
-            font=(FONT, ui_px(20, 11)),
+            font=(FONT, ui_px(18, 9)),
             bg=CARD_BG,
             fg=TEXT_MAIN,
             anchor="w",
@@ -702,7 +731,7 @@ def select_purpose():
             pady=8,
             selectcolor="#f9fafb",
             activebackground=CARD_BG,
-        ).pack(fill="x", padx=ui_px(120, 24), pady=ui_px(4, 2))
+        ).pack(fill="x", padx=ui_px(90, 12), pady=ui_px(3, 1))
 
     def submit_purposes():
         selected = [label for label, var in checkbox_vars if var.get()]
@@ -712,11 +741,14 @@ def select_purpose():
             return
         confirm_student(", ".join(selected))
 
+    actions = tk.Frame(card, bg=CARD_BG)
+    actions.pack(side="bottom", fill="x", pady=(ui_px(8, 2), ui_px(4, 1)))
+
     tk.Button(
-        card,
+        actions,
         text="Confirm Time In",
-        width=20,
-        font=(FONT, ui_px(20, 11), "bold"),
+        width=16 if SMALL_DISPLAY else 20,
+        font=(FONT, ui_px(18, 10), "bold"),
         bg=PRIMARY,
         fg="white",
         activebackground=PRIMARY_ACTIVE,
@@ -725,13 +757,13 @@ def select_purpose():
         padx=ui_px(20, 8),
         pady=ui_px(10, 4),
         command=submit_purposes,
-    ).pack(pady=(24, 8))
+    ).pack(pady=(ui_px(4, 1), ui_px(4, 1)))
 
     tk.Button(
-        card,
+        actions,
         text="Back",
-        width=20,
-        font=(FONT, ui_px(16, 10)),
+        width=16 if SMALL_DISPLAY else 20,
+        font=(FONT, ui_px(15, 9)),
         bg="#f3f4f6",
         fg=TEXT_MAIN,
         bd=0,
@@ -823,22 +855,52 @@ def view_log():
     tk.Button(card, text="Back", width=30, height=2, font=(FONT, ui_px(18, 10)), bg="#f3f4f6", fg=TEXT_MAIN, bd=0, command=admin_menu).pack(pady=ui_px(15, 6))
     
 def enter_desktop_mode():
-    root.overrideredirect(False)
-    root.attributes("-fullscreen", False)
-    root.geometry("1000x600")
+    global KIOSK_MODE
+    KIOSK_MODE = False
+    try:
+        root.overrideredirect(False)
+    except Exception:
+        pass
+    try:
+        root.attributes("-fullscreen", False)
+    except Exception:
+        pass
+    try:
+        sw = root.winfo_screenwidth()
+        sh = root.winfo_screenheight()
+        ww = min(1000, max(700, sw - 80))
+        wh = min(620, max(420, sh - 80))
+        x = max(0, (sw - ww) // 2)
+        y = max(0, (sh - wh) // 2)
+        root.geometry(f"{ww}x{wh}+{x}+{y}")
+        root.resizable(False, False)
+    except Exception:
+        pass
+    update_ui_scale()
+    admin_menu()
 
 def enter_kiosk_mode():
+    global KIOSK_MODE
+    KIOSK_MODE = True
     force_kiosk_mode()
+    update_ui_scale()
+    admin_menu()
 
 
 def force_kiosk_mode():
-    sw = root.winfo_screenwidth()
-    sh = root.winfo_screenheight()
-    root.overrideredirect(True)
-    root.attributes("-fullscreen", True)
-    root.geometry(f"{sw}x{sh}+0+0")
-    root.lift()
-    root.focus_force()
+    global KIOSK_MODE
+    KIOSK_MODE = True
+    try:
+        sw = root.winfo_screenwidth()
+        sh = root.winfo_screenheight()
+        root.overrideredirect(False)
+        root.attributes("-fullscreen", True)
+        root.geometry(f"{sw}x{sh}+0+0")
+        root.resizable(False, False)
+        root.lift()
+        root.focus_force()
+    except Exception as e:
+        logger.exception("force_kiosk_mode failed: %s", e)
 
 # ---------------- SERVER MANAGEMENT ----------------
 server_proc = None
@@ -943,6 +1005,7 @@ except Exception as e:
 root.title("Library Attendance System")
 force_kiosk_mode()
 root.after(250, force_kiosk_mode)
+root.after(750, force_kiosk_mode)
 update_ui_scale()
 bg_image_path = os.path.join(os.path.dirname(__file__), "Background.png")
 if os.path.exists(bg_image_path):

@@ -32,7 +32,8 @@ echo "6/6: Done."
 
 echo "Next steps:"
 echo " - Start server: ./.venv/bin/python Server.py"
-echo " - (Optional) To run on startup, run this script with --install-service to install a systemd service."
+echo " - (Optional) To run backend on startup: ./setup/setup_rpi.sh --install-service"
+echo " - (Optional) To run full kiosk on startup: ./setup/install_kiosk_service.sh /home/librarysys/LIBRO librarysys"
 
 if [ "${1-}" = "--install-service" ]; then
   echo "Installing systemd service..."

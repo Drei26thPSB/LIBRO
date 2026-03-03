@@ -37,5 +37,22 @@ Setup script
   - `chmod +x setup/setup_rpi.sh`
   - `./setup/setup_rpi.sh` (or `./setup/setup_rpi.sh --install-service` to enable a systemd service)
 
+Kiosk startup for Attendance.py (fullscreen on boot)
+- For your path/user (`/home/librarysys/LIBRO`, user `librarysys`):
+  - `cd /home/librarysys/LIBRO`
+  - `chmod +x setup/install_kiosk_service.sh`
+  - `./setup/install_kiosk_service.sh /home/librarysys/LIBRO librarysys`
+- This installs `libro-kiosk.service` that:
+  - waits for GUI (`DISPLAY=:0`)
+  - disables screen blanking
+  - launches `Attendance.py`
+  - restarts automatically on crash
+  - writes logs to:
+    - `logs/kiosk_stdout.log`
+    - `logs/kiosk_stderr.log`
+- Debug commands:
+  - `systemctl status libro-kiosk.service`
+  - `journalctl -u libro-kiosk.service -f`
+
 Contact
 - If you want, I can add an automated setup script to bootstrap a fresh Pi.
