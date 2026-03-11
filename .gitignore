@@ -3,3 +3,6 @@ __pycache__/
 logs/
 backups/
 csv_files/
+studentid_data/*.csv
+!studentid_data/.gitkeep
+!studentid_data/README.txt
