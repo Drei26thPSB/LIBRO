@@ -95,7 +95,9 @@ def daily_backup_csv_files():
 def is_valid_student_id(student_id):
     return bool(STUDENT_ID_PATTERN.fullmatch(student_id or ""))
 
-librarian_ids = ["S1898"]
+STARTUP_LIBRARIAN_IDS = {"E230", "S1898"}
+DIRECT_PORTAL_IDS = {"E230", "S1898"}
+OPTIONAL_PORTAL_IDS = {"E036", "E055"}
 students = {}
 students_signature = None
 
@@ -112,6 +114,12 @@ def normalize_name(text):
     return normalize_spaces(text).casefold()
 
 
+STUDENT_ID_KEYS = ["Student ID", "Student Id", "StudentID", "ID", "Student Number", "Student ID Number"]
+EMPLOYEE_ID_KEYS = ["Employee ID", "Employee Id", "EmployeeID", "Staff ID", "Teacher ID", "ID"]
+STUDENT_NAME_KEYS = ["Name", "Student Name", "Full Name"]
+EMPLOYEE_NAME_KEYS = ["Employee Name", "EmployeeName", "Staff Name", "Teacher Name", "Name", "Full Name"]
+
+
 def get_student_field(row, candidate_keys):
     normalized_row = {k.strip().casefold(): (v or "").strip() for k, v in row.items() if k}
     for key in candidate_keys:
@@ -119,6 +127,58 @@ def get_student_field(row, candidate_keys):
         if val:
             return val
     return ""
+
+
+def is_employee_roster(csv_path, row):
+    rel_path = os.path.relpath(csv_path, STUDENT_ROSTER_ROOT).replace("\\", "/").casefold()
+    row_keys = {k.strip().casefold() for k in row.keys() if k}
+    if rel_path.startswith("psb_employees") or "/psb_employees" in rel_path:
+        return True
+    return any(token in rel_path for token in ("employee", "staff", "teacher", "faculty")) or any(
+        key in row_keys for key in ("employee id", "employee id", "employeeid", "employee name", "employeename", "staff id", "staff name", "teacher id", "teacher name")
+    )
+
+
+def infer_roster_role(csv_path, row):
+    return "employee" if is_employee_roster(csv_path, row) else "student"
+
+
+def get_purpose_options(student):
+    if student.get("role") == "employee":
+        return EMPLOYEE_PURPOSE_OPTIONS
+    return STUDENT_PURPOSE_OPTIONS
+
+
+def build_person_summary(student, purpose=""):
+    if student.get("role") == "employee":
+        lines = [
+            f"Name: {student['name']}",
+            f"Role: {student['grade']}",
+            f"Group: {student['section']}",
+        ]
+    else:
+        lines = [
+            f"Name: {student['name']}",
+            f"Grade: {student['grade']}",
+            f"Section: {student['section']}",
+        ]
+    if purpose:
+        lines.append(f"Purpose: {purpose}")
+    return "\n".join(lines)
+
+
+def can_use_optional_portal(student_id, student):
+    return student_id in OPTIONAL_PORTAL_IDS and student.get("role") == "employee"
+
+
+def extract_roster_identity(row, role):
+    if role == "employee":
+        sid = normalize_student_id(get_student_field(row, EMPLOYEE_ID_KEYS))
+        name_val = normalize_spaces(get_student_field(row, EMPLOYEE_NAME_KEYS))
+    else:
+        sid = normalize_student_id(get_student_field(row, STUDENT_ID_KEYS))
+        name_val = normalize_spaces(get_student_field(row, STUDENT_NAME_KEYS))
+    return sid, name_val
 
 
 def parse_grade_section_from_filename(csv_path):
@@ -162,23 +222,23 @@ def load_students_from_rosters():
                     if not reader.fieldnames:
                         continue
                     for row in reader:
-                        sid = normalize_student_id(
-                            get_student_field(
-                                row,
-                                ["Student ID", "Student Id", "StudentID", "ID", "Student Number", "Student ID Number"],
-                            )
-                        )
-                        name_val = normalize_spaces(get_student_field(row, ["Name", "Student Name", "Full Name"]))
+                        role = infer_roster_role(full, row)
+                        sid, name_val = extract_roster_identity(row, role)
                         if not sid or not name_val:
                             continue
-                        grade = normalize_spaces(get_student_field(row, ["Grade", "Grade Level", "GradeLevel"])) or filename_grade
-                        section = normalize_spaces(get_student_field(row, ["Section"])) or filename_section
+                        if role == "employee":
+                            grade = normalize_spaces(get_student_field(row, ["Role", "Department", "Grade", "Grade Level", "GradeLevel"])) or "EMPLOYEE"
+                            section = normalize_spaces(get_student_field(row, ["Section", "Department", "Office", "Campus"])) or "STAFF"
+                        else:
+                            grade = normalize_spaces(get_student_field(row, ["Grade", "Grade Level", "GradeLevel"])) or filename_grade
+                            section = normalize_spaces(get_student_field(row, ["Section"])) or filename_section
                         class_number = normalize_spaces(get_student_field(row, ["Class Number", "Class", "Class No", "No"]))
                         loaded[sid] = {
                             "name": name_val,
                             "grade": grade,
                             "section": section,
                             "class_number": class_number,
+                            "role": role,
                             "source": os.path.relpath(full, STUDENT_ROSTER_ROOT).replace("\\", "/"),
                         }
             except Exception as e:
@@ -194,9 +254,9 @@ def ensure_students_loaded(force=False):
     students = load_students_from_rosters()
     students_signature = new_signature
     if students:
-        logger.info("Loaded %d student record(s) from %s.", len(students), STUDENT_ROSTER_ROOT)
+        logger.info("Loaded %d roster record(s) from %s.", len(students), STUDENT_ROSTER_ROOT)
     else:
-        logger.warning("No valid student roster records found in %s.", STUDENT_ROSTER_ROOT)
+        logger.warning("No valid roster records found in %s.", STUDENT_ROSTER_ROOT)
 
 
 def parse_scan_input(raw_text):
@@ -229,7 +289,8 @@ CSV_HEADERS = ["Student ID", "Name", "Section", "Purpose", "Time In", "Time Out"
 current_student = None
 current_student_id = None
 last_scan_time = {}
-purpose_options = ["Study", "Borrow Book", "Research", "Use Ipad/PC", "Others"]
+STUDENT_PURPOSE_OPTIONS = ["Study", "Borrow Book", "Research", "Use Ipad/PC", "Others"]
+EMPLOYEE_PURPOSE_OPTIONS = [*STUDENT_PURPOSE_OPTIONS, "Class Session"]
 SCAN_TIMEOUT = 7
 
 # ---------------- UI STYLE ----------------
@@ -652,7 +713,7 @@ def librarian_verify_start():
     def check(event=None):
         sid = entry.get().strip()
         entry.delete(0, tk.END)
-        if sid in librarian_ids:
+        if sid in STARTUP_LIBRARIAN_IDS:
             play_beep()
             show_info_dialog("Access Granted", "Attendance Initialized!")
             standby_mode()
@@ -671,7 +732,7 @@ def standby_mode():
     def process_scan(event=None):
         sid = entry.get().strip()
         entry.delete(0, tk.END)
-        if sid in librarian_ids:
+        if sid in DIRECT_PORTAL_IDS:
             play_beep()
             admin_menu()
             return
@@ -714,7 +775,7 @@ def select_purpose():
     list_frame = tk.Frame(card, bg=CARD_BG)
     list_frame.pack(fill="both", expand=True)
 
-    for p in purpose_options:
+    for p in get_purpose_options(current_student):
         var = tk.BooleanVar(value=False)
         checkbox_vars.append((p, var))
         tk.Checkbutton(
@@ -759,6 +820,21 @@ def select_purpose():
         command=submit_purposes,
     ).pack(pady=(ui_px(4, 1), ui_px(4, 1)))
 
+    if current_student_id and current_student and can_use_optional_portal(current_student_id, current_student):
+        tk.Button(
+            card,
+            text="Librarian Portal",
+            font=(FONT, ui_px(14, 9), "bold"),
+            bg="#111827",
+            fg="white",
+            activebackground="#1f2937",
+            activeforeground="white",
+            bd=0,
+            padx=ui_px(16, 8),
+            pady=ui_px(8, 4),
+            command=admin_menu,
+        ).place(relx=0.0, rely=1.0, x=ui_px(8, 4), y=-ui_px(8, 4), anchor="sw")
+
     tk.Button(
         actions,
         text="Back",
@@ -774,11 +850,7 @@ def select_purpose():
 
 # ---------------- CONFIRM ----------------
 def confirm_student(purpose):
-    msg = (f"Name: {current_student['name']}\n"
-           f"Grade: {current_student['grade']}\n"
-           f"Section: {current_student['section']}\n"
-           f"Purpose: {purpose}\n\n"
-           f"Proceed with Time In?")
+    msg = f"{build_person_summary(current_student, purpose)}\n\nProceed with Time In?"
     if show_yesno_dialog("Confirm", msg):
         play_chime()
         time_in = record_time_in(current_student_id, current_student, purpose)
@@ -790,10 +862,7 @@ def confirm_student(purpose):
 
 
 def confirm_time_out():
-    msg = (f"Name: {current_student['name']}\n"
-           f"Grade: {current_student['grade']}\n"
-           f"Section: {current_student['section']}\n\n"
-           f"Proceed with Time Out?")
+    msg = f"{build_person_summary(current_student)}\n\nProceed with Time Out?"
     if show_yesno_dialog("Confirm Time Out", msg):
         time_out = record_time_out(current_student_id)
         if time_out:
