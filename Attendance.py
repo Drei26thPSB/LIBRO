@@ -876,10 +876,184 @@ def confirm_time_out():
         play_double_beep()
         show_warning_dialog("Cancelled", "Time Out was cancelled.")
 
+
+def detect_usb_mounts():
+    mounts = []
+    seen = set()
+
+    def add_mount(path):
+        if not path:
+            return
+        abs_path = os.path.abspath(path)
+        if not os.path.isdir(abs_path) or abs_path in seen:
+            return
+        seen.add(abs_path)
+        mounts.append(abs_path)
+
+    if os.name == "nt":
+        for letter in "DEFGHIJKLMNOPQRSTUVWXYZ":
+            drive = f"{letter}:\\"
+            if os.path.isdir(drive):
+                add_mount(drive)
+    else:
+        for root_dir in ("/media", "/run/media", "/mnt"):
+            if not os.path.isdir(root_dir):
+                continue
+            for dirpath, dirnames, _ in os.walk(root_dir):
+                for dirname in dirnames:
+                    add_mount(os.path.join(dirpath, dirname))
+    return mounts
+
+
+def list_transferable_portal_logs():
+    files = []
+    try:
+        for dirpath, _, filenames in os.walk(CSV_ROOT):
+            rel_dir = os.path.relpath(dirpath, CSV_ROOT)
+            rel_dir = "" if rel_dir == "." else rel_dir.replace("\\", "/")
+            for name in sorted(filenames):
+                if not name.lower().endswith(".csv"):
+                    continue
+                rel = f"{rel_dir}/{name}".strip("/") if rel_dir else name
+                full = os.path.join(dirpath, name)
+                files.append({
+                    "label": f"csv_files/{rel}",
+                    "source": full,
+                    "dest_rel": os.path.join("csv_files", rel.replace("/", os.sep)),
+                })
+    except Exception as e:
+        logger.exception("Failed listing CSV logs for USB transfer: %s", e)
+
+    try:
+        for name in sorted(os.listdir(LOG_ROOT)):
+            full = os.path.join(LOG_ROOT, name)
+            if not os.path.isfile(full) or not name.lower().endswith(".log"):
+                continue
+            files.append({
+                "label": f"logs/{name}",
+                "source": full,
+                "dest_rel": os.path.join("logs", name),
+            })
+    except Exception as e:
+        logger.exception("Failed listing app logs for USB transfer: %s", e)
+    return files
+
+
+def transfer_logs_to_usb_menu():
+    card = build_card("Transfer Logs To USB", "Select logs to copy to a detected USB drive.", card_relheight=0.84 if SMALL_DISPLAY else 0.78)
+
+    mounts = detect_usb_mounts()
+    status_text = f"USB detected: {mounts[0]}" if mounts else "No USB detected. Insert a USB drive to transfer logs."
+    tk.Label(
+        card,
+        text=status_text,
+        font=(FONT, ui_px(14, 9)),
+        bg=CARD_BG,
+        fg=TEXT_MUTED,
+        wraplength=ui_px(780, 420),
+        justify=tk.CENTER,
+    ).pack(pady=(0, ui_px(10, 4)))
+
+    items = list_transferable_portal_logs()
+    list_frame = tk.Frame(card, bg=CARD_BG)
+    list_frame.pack(fill=tk.BOTH, expand=True, padx=ui_px(36, 14), pady=(0, ui_px(12, 6)))
+
+    scrollbar = tk.Scrollbar(list_frame)
+    scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+
+    listbox = tk.Listbox(
+        list_frame,
+        selectmode=tk.MULTIPLE,
+        yscrollcommand=scrollbar.set,
+        font=(FONT, ui_px(13, 9)),
+        bg="#f9fafb",
+        fg=TEXT_MAIN,
+        bd=0,
+        activestyle="none",
+        exportselection=False,
+    )
+    listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+    scrollbar.config(command=listbox.yview)
+
+    if items:
+        for item in items:
+            listbox.insert(tk.END, item["label"])
+    else:
+        listbox.insert(tk.END, "No logs available to transfer.")
+        listbox.config(state=tk.DISABLED)
+
+    def transfer_selected_logs():
+        if not mounts:
+            play_double_beep()
+            show_error_dialog("USB Not Detected", "USB not detected and requires USB to transfer.")
+            return
+        if not items:
+            play_double_beep()
+            show_warning_dialog("No Logs", "No logs available to transfer.")
+            return
+
+        selected_indices = listbox.curselection()
+        if not selected_indices:
+            play_double_beep()
+            show_warning_dialog("Select Logs", "Select at least one log to transfer.")
+            return
+
+        target_root = os.path.join(mounts[0], "LIBRO_USB_EXPORT", time.strftime("%Y-%m-%d_%H-%M-%S"))
+        copied = 0
+        try:
+            os.makedirs(target_root, exist_ok=True)
+            for index in selected_indices:
+                item = items[index]
+                dest = os.path.join(target_root, item["dest_rel"])
+                os.makedirs(os.path.dirname(dest), exist_ok=True)
+                shutil.copy2(item["source"], dest)
+                copied += 1
+        except Exception as e:
+            logger.exception("USB transfer failed: %s", e)
+            play_double_beep()
+            show_error_dialog("Transfer Failed", "Failed to transfer selected logs to USB.")
+            return
+
+        play_beep()
+        show_info_dialog("Transfer Complete", f"Transferred {copied} log file(s) to:\n{target_root}")
+        admin_menu()
+
+    actions = tk.Frame(card, bg=CARD_BG)
+    actions.pack(side="bottom", fill="x", pady=(ui_px(10, 4), ui_px(4, 2)))
+
+    tk.Button(
+        actions,
+        text="Transfer Selected Logs",
+        width=24 if SMALL_DISPLAY else 28,
+        font=(FONT, ui_px(16, 10), "bold"),
+        bg=PRIMARY,
+        fg="white",
+        activebackground=PRIMARY_ACTIVE,
+        activeforeground="white",
+        bd=0,
+        padx=ui_px(18, 8),
+        pady=ui_px(8, 4),
+        command=transfer_selected_logs,
+    ).pack(pady=(0, ui_px(8, 4)))
+
+    tk.Button(
+        actions,
+        text="Back",
+        width=20 if SMALL_DISPLAY else 24,
+        font=(FONT, ui_px(15, 9)),
+        bg="#f3f4f6",
+        fg=TEXT_MAIN,
+        bd=0,
+        padx=ui_px(18, 8),
+        pady=ui_px(8, 4),
+        command=admin_menu,
+    ).pack()
+
 # ---------------- ADMIN MENU ----------------
 def admin_menu():
     card = build_card("Admin Portal", "Attendance controls", card_relheight=0.70)
     tk.Button(card, text="View Today's Log", width=30, height=2, font=(FONT, ui_px(20, 11)), bg="#111827", fg="white", bd=0, command=view_log).pack(pady=ui_px(10, 4))
+    tk.Button(card, text="Transfer Logs To USB", width=30, height=2, font=(FONT, ui_px(20, 11)), bg="#111827", fg="white", bd=0, command=transfer_logs_to_usb_menu).pack(pady=ui_px(10, 4))
     tk.Button(card, text="Exit Admin", width=30, height=2, font=(FONT, ui_px(20, 11)), bg="#f3f4f6", fg=TEXT_MAIN, bd=0, command=standby_mode).pack(pady=ui_px(10, 4))
     tk.Button(card, text="Desktop Mode", width=30, height=2, font=(FONT, ui_px(20, 11)), bg="#f3f4f6", fg=TEXT_MAIN, bd=0, command=enter_desktop_mode).pack(pady=ui_px(10, 4))
 

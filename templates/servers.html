@@ -55,47 +55,6 @@
     </div>
   </div>
 
-  <div class="panel mb-4">
-    <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
-      <div>
-        <h2 class="h5 mb-1">Transfer Logs To USB</h2>
-        <p class="text-muted mb-0">Select CSV or app log files, then copy them to the first detected USB drive.</p>
-      </div>
-      <div class="text-muted small">
-        {% if usb_mounts %}
-          USB detected: {{ usb_mounts[0] }}
-        {% else %}
-          No USB detected. Insert a USB drive to transfer logs.
-        {% endif %}
-      </div>
-    </div>
-
-    <form method="post" action="{{ url_for('transfer_to_usb') }}">
-      <input type="hidden" name="back_path" value="{{ path }}">
-      <div class="table-responsive">
-        <table class="table table-sm table-hover mb-3">
-          <thead>
-            <tr><th style="width:60px">Pick</th><th>File</th><th>Folder</th><th>Size</th></tr>
-          </thead>
-          <tbody>
-            {% for item in transferable_logs %}
-            <tr>
-              <td><input type="checkbox" name="selected_logs" value="{{ item.kind }}:{{ item.rel }}"></td>
-              <td>{{ item.label }}</td>
-              <td>{{ item.folder if item.folder else 'Main Directory' }}</td>
-              <td>{{ item.size }} bytes</td>
-            </tr>
-            {% endfor %}
-            {% if not transferable_logs %}
-            <tr><td colspan="4">No logs available to transfer.</td></tr>
-            {% endif %}
-          </tbody>
-        </table>
-      </div>
-      <button class="btn btn-outline-success" type="submit">Transfer Selected To USB</button>
-    </form>
-  </div>
-
   <div class="table-wrap mb-4">
     <table class="table table-sm table-hover mb-0">
       <thead>

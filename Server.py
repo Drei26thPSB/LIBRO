@@ -160,81 +160,6 @@ def csv_safe_join(rel_path=''):
     return safe_join(CSV_ROOT_ABS, rel_path or '')
 
 
-def detect_usb_mounts():
-    mounts = []
-    seen = set()
-
-    def add_mount(path):
-        if not path:
-            return
-        abs_path = os.path.abspath(path)
-        if not os.path.isdir(abs_path) or abs_path in seen:
-            return
-        seen.add(abs_path)
-        mounts.append(abs_path)
-
-    if os.name == 'nt':
-        for letter in 'DEFGHIJKLMNOPQRSTUVWXYZ':
-            drive = f'{letter}:\\'
-            if os.path.isdir(drive):
-                add_mount(drive)
-    else:
-        candidate_roots = [
-            '/media',
-            '/run/media',
-            '/mnt',
-        ]
-        for root in candidate_roots:
-            if not os.path.isdir(root):
-                continue
-            for dirpath, dirnames, _ in os.walk(root):
-                for dirname in dirnames:
-                    add_mount(os.path.join(dirpath, dirname))
-    return mounts
-
-
-def list_transferable_logs():
-    files = []
-    for csv_file in list_all_csv_files():
-        files.append({
-            'label': csv_file['rel'],
-            'kind': 'csv',
-            'rel': csv_file['rel'],
-            'folder': csv_file['folder'],
-            'size': csv_file['size'],
-        })
-
-    for name in sorted(os.listdir(logs_dir)):
-        full = os.path.join(logs_dir, name)
-        if not os.path.isfile(full) or not name.lower().endswith('.log'):
-            continue
-        files.append({
-            'label': f'logs/{name}',
-            'kind': 'log',
-            'rel': name,
-            'folder': 'logs',
-            'size': os.path.getsize(full),
-        })
-    return files
-
-
-def resolve_transfer_source(kind, rel):
-    if kind == 'csv':
-        full = csv_safe_join(rel)
-        if os.path.isfile(full) and full.lower().endswith('.csv'):
-            return full, os.path.join('csv_files', rel.replace('/', os.sep))
-        return None, None
-
-    if kind == 'log':
-        filename = os.path.basename(rel or '')
-        full = safe_join(logs_dir, filename)
-        if os.path.isfile(full) and full.lower().endswith('.log'):
-            return full, os.path.join('logs', filename)
-        return None, None
-
-    return None, None
-
-
 def list_folders():
     out = ['']
     for dirpath, _, _ in os.walk(CSV_ROOT_ABS):
@@ -322,8 +247,6 @@ def manage_files():
 
     folders = list_folders()
     all_csv_files = list_all_csv_files()
-    transferable_logs = list_transferable_logs()
-    usb_mounts = detect_usb_mounts()
     return render_template(
         'servers.html',
         entries=entries,
@@ -331,8 +254,6 @@ def manage_files():
         path=path,
         csv_root=CSV_ROOT,
         all_csv_files=all_csv_files,
-        transferable_logs=transferable_logs,
-        usb_mounts=usb_mounts,
     )
 
 
@@ -551,49 +472,6 @@ def delete_item():
         flash('Delete failed', 'danger')
 
     return redirect(url_for('manage_files', path=back_path))
-
-
-@app.route('/transfer_to_usb', methods=['POST'])
-def transfer_to_usb():
-    back_path = (request.form.get('back_path') or '').strip('/')
-    selected = request.form.getlist('selected_logs')
-    usb_mounts = detect_usb_mounts()
-
-    if not selected:
-        flash('Select at least one log to transfer.', 'danger')
-        return redirect(url_for('manage_files', path=back_path))
-
-    if not usb_mounts:
-        flash('USB not detected. Please insert a USB drive to transfer logs.', 'danger')
-        return redirect(url_for('manage_files', path=back_path))
-
-    target_root = os.path.join(usb_mounts[0], 'LIBRO_USB_EXPORT', time.strftime('%Y-%m-%d_%H-%M-%S'))
-    copied = 0
-    try:
-        os.makedirs(target_root, exist_ok=True)
-        for item in selected:
-            if ':' not in item:
-                continue
-            kind, rel = item.split(':', 1)
-            src, dest_rel = resolve_transfer_source(kind, rel)
-            if not src or not dest_rel:
-                continue
-            dest = os.path.join(target_root, dest_rel)
-            os.makedirs(os.path.dirname(dest), exist_ok=True)
-            shutil.copy2(src, dest)
-            copied += 1
-    except Exception:
-        app.logger.exception('USB transfer failed')
-        flash('USB transfer failed.', 'danger')
-        return redirect(url_for('manage_files', path=back_path))
-
-    if copied == 0:
-        flash('No valid logs were transferred.', 'danger')
-    else:
-        flash(f'Transferred {copied} log file(s) to USB: {target_root}', 'success')
-    return redirect(url_for('manage_files', path=back_path))
-
-
 if __name__ == '__main__':
     ensure_csv_root_and_move_existing()
     port = int(os.getenv('PORT', os.getenv('LIBRO_PORT', '5000')))
