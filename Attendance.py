@@ -923,24 +923,11 @@ def list_transferable_portal_logs():
                 })
     except Exception as e:
         logger.exception("Failed listing CSV logs for USB transfer: %s", e)
-
-    try:
-        for name in sorted(os.listdir(LOG_ROOT)):
-            full = os.path.join(LOG_ROOT, name)
-            if not os.path.isfile(full) or not name.lower().endswith(".log"):
-                continue
-            files.append({
-                "label": f"logs/{name}",
-                "source": full,
-                "dest_rel": os.path.join("logs", name),
-            })
-    except Exception as e:
-        logger.exception("Failed listing app logs for USB transfer: %s", e)
     return files
 
 
 def transfer_logs_to_usb_menu():
-    card = build_card("Transfer Logs To USB", "Select logs to copy to a detected USB drive.", card_relheight=0.84 if SMALL_DISPLAY else 0.78)
+    card = build_card("Transfer Logs To USB", "Select CSV files from csv_files to copy to a detected USB drive.", card_relheight=0.84 if SMALL_DISPLAY else 0.78)
 
     mounts = detect_usb_mounts()
     status_text = f"USB detected: {mounts[0]}" if mounts else "No USB detected. Insert a USB drive to transfer logs."
