@@ -1,0 +1,2 @@
+2026-03-12 15:52:04,919 INFO: Starting server [in c:\Users\Andrei\Downloads\LIBRO\Server.py:30]
+2026-03-12 15:52:04,919 WARNING: Using fallback login user. Configure LIBRO_USER/LIBRO_PASS or LIBRO_ALLOWED_USERS. [in c:\Users\Andrei\Downloads\LIBRO\Server.py:53]
