@@ -10,7 +10,7 @@ import datetime
 import hmac
 
 app = Flask(__name__)
-app.secret_key = 'change-me-to-a-secure-key'
+app.secret_key = os.getenv('LIBRO_SECRET_KEY', 'change-me-to-a-secure-key')
 app.config['PERMANENT_SESSION_LIFETIME'] = datetime.timedelta(
     minutes=int(os.getenv('LIBRO_SESSION_TIMEOUT_MINUTES', '20'))
 )
